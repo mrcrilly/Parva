@@ -9,24 +9,28 @@ __author__					= "Michael Crilly"
 __copyright__				= "Public domain"
 __credits__					= [ "Python developers",  "Linus Tarvolds", "The NSA" ]
 __license__					= "Public Domain"
-__version__					= "0.0.1"
+__version__					= "0.0.2"
 
-#from subprocess import call
 from getpass import getpass
 from pwgen import pwgen
 from datetime import datetime,timedelta
-#from shutil import copy2
-#from tempfile import mkstemp
 from os.path import exists, getsize
 from os import remove
+from shutil import copy2
+from time import sleep
+
+# Cryptographic functions
 from Crypto.Cipher import AES
 from Cyrpto import Random
+from pbkdf2 import PBKDF2
 
 import json
 
 # Database - we use a flat file
 DB_DATA_FILE				= './safe'
-(DB_TMP_FD, TMP_DATA_FILE) 	= mkstemp(dir='/dev/shm')
+
+# 2013-07-18 - This should not be needed; mc
+#(DB_TMP_FD, TMP_DATA_FILE) 	= mkstemp(dir='/dev/shm')
 
 def createDatabase():
 	'''
@@ -91,13 +95,6 @@ def printJSON(print_me):
 	'''
 	print json.dumps(print_me, separators=(':', ','), sort_keys=True, indent=4)
 
-def shredRemains(body=TMP_DATA_FILE):
-	'''
-	Shred the temporary file so we don't leave anything laying around.
-	'''
-	if os.path.exists(body):
-		call(['shred', '-u', '-n50', body])
-	
 def addRecord(tag):
 	'''
 	Add a new record to the database
@@ -162,13 +159,16 @@ def dumpRecords():
 	print json.dumps(db, separators=(',', ':'), sort_keys=True, indent=4)
 #	print json.dumps(db)
 
-def encryptDatabase(secretkey, db_from=TMP_DATA_FILE, db_to=DB_DATA_FILE):
+def encryptDatabase(secretkey, data):
 	'''
 	Issue an OpenSSL command to encrypt database.
 	'''
-	call(["openssl", "enc", "-e", "-aes-256-cbc", "-k", secretkey, "-in", db_from, "-out", db_to])
+#	call(["openssl", "enc", "-e", "-aes-256-cbc", "-k", secretkey, "-in", db_from, "-out", db_to])
+	IV = Random.new().read(32)
+	engine = AES.new(secretkey, AES.MODE_CFB, IV)
+	return (IV + engine.encrypt(data))
 	
-def decryptDatabase(secretkey, db_from=DB_DATA_FILE, db_to=TMP_DATA_FILE):
+def decryptDatabase(secretkey, data, IV):
 	'''
 	Issue an OpenSSL command to decrypt the database.
 	'''
