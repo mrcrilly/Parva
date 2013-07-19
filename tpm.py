@@ -135,7 +135,8 @@ def viewPassword(db, tag):
 	Print out only the password.
 	'''
 	if tag in db['secrets']:
-		dumpRecords(db['secrets'][tag]['password'], compact=False)
+		pw = db['secrets'][tag]['password']
+		print "Password: {}".format(pw)
 	else:
 		print "Unable to find that tag in the database."
 		exit(1)
@@ -257,13 +258,13 @@ def main():
 		encryptDatabase(skey, data)
 
 # ENCRYPT
-	if args.encrypt:
+#	if args.encrypt:
 #		backupDatabase()
-		fd = open(DB_DATA_FILE, 'rb')
-		data = fd.read()
-		fd.close()
-		encryptDatabase(secret_key, data)
-		exit(0)
+#		fd = open(DB_DATA_FILE, 'rb')
+#		data = fd.read()
+#		fd.close()
+#		encryptDatabase(secret_key, data)
+#		exit(0)
 
 # DECRYPT
 #	if args.decrypt:
