@@ -11,7 +11,7 @@ __credits__					= [ "Python developers",  "Linus Tarvolds", "The NSA" ]
 __license__					= "Public Domain"
 __version__					= "0.0.2"
 
-from getpass import getpass
+from getpass import getpass, getuser
 from pwgen import pwgen
 from datetime import datetime,timedelta
 from os.path import exists, getsize
@@ -28,6 +28,7 @@ import json
 
 # Database - we use a flat file
 DB_DATA_FILE				= './safe'
+SKEY_SALT					= 'Iex5Eiqueizaba5moS9es1wo3eethii3oniw7igh5eitie0olo'
 
 # 2013-07-18 - This should not be needed; mc
 #(DB_TMP_FD, TMP_DATA_FILE) 	= mkstemp(dir='/dev/shm')
@@ -59,7 +60,7 @@ def createDatabase():
 			print "Unable to create new database. Exiting."
 			exit(1)
 	else:
-		print "Move or delete existing database."
+		print "Please move or delete the existing database."
 
 def openDatabase():
 	'''
@@ -178,6 +179,7 @@ def main():
 	'''
 	Our application entry point.
 	'''
+
 # Set up and handle argument parsing
 	from argparse import ArgumentParser
 	ap = ArgumentParser()
@@ -189,11 +191,11 @@ def main():
 	ap.add_argument('-a', '--add', metavar='tag', dest='add', help='Add a new record')
 	ap.add_argument('-d', '--delete', metavar='tag', dest='delete', help='Delete an existing record')
 	ap.add_argument('-e', '--edit', dest='edit', help='Edit the database', action='store_true')
+	ap.add_argument('-v', '--view', metavar='tag', dest='view', help='View an individual record')
 
-# Database record viewing and exporting
+# Database record exporting
 	ap.add_argument('-j', '--compact-json', dest='json', help='Dump the database: compact and ugly.', action='store_true')
 	ap.add_argument('-J', '--pretty-json', dest='pjson', help='Dump the database: verbose and pretty.', action='store_true')
-	ap.add_argument('-v', '--view', metavar='tag', dest='view', help='View an individual record')
 
 # Encryption and Decryption flags
 	ap.add_argument('--encrypt', dest='encrypt', help='Encrypt the database', action='store_true')
@@ -204,9 +206,16 @@ def main():
 
 # If we're not passed the key via -k/--key, ask for the password
 	if not args.key:
-		secret_key = getpass("Secret Key: ")
+		skey_1 = getpass("Secret Key: ")
+		skey_2 = getpass("Secret Key (again): ")
+		
+		if not skey_1 == skey_2:
+			print "The secret keys don't match."
+			exit(1)
+		else:
+			skey = PBKDF2(skey_1, SKEY_SALT).read(32)		
 	else:
-		secret_key = args.key
+		skey = PBKDF2(args.key, SKEY_SALT).read(32)
 
 # Check the database exists before trying to do anything else
 	if not os.path.exists(DB_DATA_FILE) or args.create:
