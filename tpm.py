@@ -7,9 +7,9 @@ tpm.py - Tiny Password Manager
 # Script information
 __author__					= "Michael Crilly"
 __copyright__				= "Public domain"
-__credits__					= [ "Python developers",  "Linus Tarvolds", "The NSA" ]
+#__credits__					= [ "Python developers",  "Linus Tarvolds", "The NSA" ]
 __license__					= "Public Domain"
-__version__					= "0.0.2"
+__version__					= "0.0.3"
 
 from getpass import getpass, getuser
 from pwgen import pwgen
@@ -278,15 +278,27 @@ def main():
 		data = addRecord(data, args.add)
 
 		if args.username:
-			pass
+			data['secrets'][args.add]['username'] = args.username
 		if args.system:
-			pass
+			data['secrets'][args.add]['system'] = args.system
 		if args.sensitivity:
-			pass
+			if int(args.sensitivity) < 0 or int(args.sensitivity) > 3:
+				print "Sensitivity values supported: 0, 1, 2 and 3."
+				exit(1)
+			else:
+				data['secrets'][args.add]['sensitivity'] = int(args.sensitivity)
 		if args.enabled:
-			pass
+			if int(args.enabled) < 0 or int(args.enabled) > 1:
+				print "Enabled flag requires 0 (zero/disabled) or 1 (one/enabled - default)"
+				exit(1)
+			else:
+				data['secrets'][args.add]['enabled'] = int(args.enabled)
 		if args.readonly:
-			pass
+			if int(args.readonly) < 0 or int(args.readonly) > 1:
+				print "Read-only flags requires 0 (zero/false - default) or 1 (one/true)"
+				exit(1)
+			else:
+				data['secrets'][args.add]['readonly'] = int(args.readonly)
 
 		encryptDatabase(skey, data)
 
