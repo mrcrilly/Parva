@@ -51,7 +51,7 @@ def createDatabase():
 		r'accessed': None
 	}
 
-	if not os.path.exists(DB_DATA_FILE):
+	if not exists(DB_DATA_FILE):
 		fd = open(TMP_DATA_FILE, 'w')
 		if fd:
 			fd.write(r"{}".format(json.JSONEncoder().encode(structure)))
@@ -66,17 +66,17 @@ def openDatabase():
 	'''
 	Open up the database, pulling in the JSON data for manipulation.
 	'''
-	fd = open(TMP_DATA_FILE)
-	if fd:
-		database = json.load(fd)
-		fd.close()
+	if exists(DB_DATA_FILE):
+		fd = open(DB_DATA_FILE, 'rb')
+		if fd:
+			return(json.JSONDecoder().decode(fd.read()))
+			fd.close()
+		else:
+			print "Problem opening database file."
+			exit(1)
 	else:
-		print "Problem opening database file."
+		print "Database file doesn't exist."
 		exit(1)
-
-# We update the accessed time at this point
-	database['accessed'] = str(datetime.now())
-	return database
 
 def backupDatabase():
 	'''
@@ -152,28 +152,50 @@ def deleteRecord(tag):
 	'''
 	pass
 
-def dumpRecords():
+def dumpRecords(data):
 	'''
 	Dump all of the records into a compact JSON format.
 	'''
-	db = openDatabase()
-	print json.dumps(db, separators=(',', ':'), sort_keys=True, indent=4)
-#	print json.dumps(db)
+	print json.dumps(data, separators=(',', ':'), sort_keys=True, indent=4)
 
-def encryptDatabase(secretkey, data):
+def encryptDatabase(secretkeyi, data):
 	'''
 	Issue an OpenSSL command to encrypt database.
 	'''
-#	call(["openssl", "enc", "-e", "-aes-256-cbc", "-k", secretkey, "-in", db_from, "-out", db_to])
-	IV = Random.new().read(32)
+	IV = Random.new().read(16)
 	engine = AES.new(secretkey, AES.MODE_CFB, IV)
-	return (IV + engine.encrypt(data))
+
+	if exists(DB_DATA_FILE):
+		fd = open(DB_DATA_FILE, 'wb')
+		if fd:
+			fd.write(IV + engine.encrypt(data))
+			fd.close()
+		else:
+			print "Problem opening database."
+			exit(1)
+	else:
+		print "Unable to find database file."
 	
-def decryptDatabase(secretkey, data, IV):
+def decryptDatabase(secretkey):
 	'''
 	Issue an OpenSSL command to decrypt the database.
 	'''
-	call(["openssl", "enc", "-d", "-aes-256-cbc", "-k", secretkey, "-in", db_from, "-out", db_to])
+	if exists(DB_DATA_FILE):
+		fd = open(DB_DATA_FILE, 'rb')
+		if fd:
+			IV = fd.read(16)
+			data = fd.read()
+			engine = AES.new(secretkey, AES.MODE_CFB, IV)
+			denc_data = engine.decrypt(data)
+			fd.close()
+		else:
+			print "Unable to open database file."
+			exit(1)
+	else:
+		print "Unable to find database file."
+		exit(1)
+
+	return denc_data
 
 def main():
 	'''
@@ -218,40 +240,34 @@ def main():
 		skey = PBKDF2(args.key, SKEY_SALT).read(32)
 
 # Check the database exists before trying to do anything else
-	if not os.path.exists(DB_DATA_FILE) or args.create:
+	if not exists(DB_DATA_FILE) or args.create:
 		createDatabase()
-		encryptDatabase(secret_key)
-		shredRemains()
+		fd = open(DB_DATA_FILE, 'rb')
+		data = fd.read()
+		fd.close()
+		encryptDatabase(skey, data)
 
 # ENCRYPT
 	if args.encrypt:
-		backupDatabase()
-		encryptDatabase(secret_key, db_from='./unsafe')
-		shredRemains('./unsafe')
+#		backupDatabase()
+		fd = open(DB_DATA_FILE, 'rb')
+		data = fd.read()
+		fd.close()
+		encryptDatabase(secret_key, data)
 		exit(0)
 
 # DECRYPT
-	if args.decrypt:
-		backupDatabase()
-		decryptDatabase(secret_key, db_to='./unsafe')
-		exit(0)
+#	if args.decrypt:
+#		backupDatabase()
+#		decryptDatabase(secret_key, db_to='./unsafe')
+#		exit(0)
 
 # ADD RECORD
 	if args.add:
-		backupDatabase()
-		decryptDatabase(secret_key)
-		addRecord(args.add)
-		encryptDatabase(secret_key)
-		shredRemains()
 		exit(0)
 
 # DELETE RECORD
 	if args.delete:
-		backupDatabase()
-		decryptDatabase(secret_key)
-		deleteRecord(args.delete)
-		encryptDatabase(secret_key)
-		shredRemains()
 		exit(0)
 
 # EDIT RECORD
@@ -261,10 +277,8 @@ def main():
 
 # PRINT UGLY JSON
 	if args.json:
-		decryptDatabase(secret_key)
-		dumpRecords()
-		encryptDatabase(secret_key)
-		shredRemains()
+		data = decryptDatabase(skey)
+		dumpRecords(data)
 		exit(0)
 
 # PRINT PRETTY JSON
@@ -273,10 +287,6 @@ def main():
 
 # PRINT RECORD
 	if args.view:
-		decryptDatabase(secret_key)
-		viewRecord(args.view)
-		encryptDatabase(secret_key)
-		shredRemains()
 		exit(0)
 
 if __name__ == "__main__":
