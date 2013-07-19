@@ -124,9 +124,18 @@ def viewRecord(db, tag):
 	'''
 	Match the string and display the results
 	'''
-
 	if tag in db['secrets']:
 		dumpRecords(db['secrets'][tag], compact=False)
+	else:
+		print "Unable to find that tag in the database."
+		exit(1)
+
+def viewPassword(db, tag):
+	'''
+	Print out only the password.
+	'''
+	if tag in db['secrets']:
+		dumpRecords(db['secrets'][tag]['password'], compact=False)
 	else:
 		print "Unable to find that tag in the database."
 		exit(1)
@@ -144,9 +153,9 @@ def dumpRecords(data, compact=False):
 	Dump all of the records into a compact JSON format.
 	'''
 	if not compact:
-		print json.dumps(json.JSONDecoder().decode(data), separators=(',', ':'), sort_keys=True, indent=4)
+		print json.dumps(data, separators=(',', ':'), sort_keys=True, indent=4)
 	else:
-		print json.dumps(json.JSONDecoder().decode(data))
+		print json.dumps(data)
 
 def encryptDatabase(secretkey, data):
 	'''
@@ -159,7 +168,8 @@ def encryptDatabase(secretkey, data):
 	if exists(DB_DATA_FILE):
 		fd = open(DB_DATA_FILE, 'wb')
 		if fd:
-			fd.write(IV + engine.encrypt(data))
+			jdata = json.JSONEncoder().encode(data)
+			fd.write(IV + engine.encrypt(jdata))
 			fd.close()
 		else:
 			print "Problem opening database."
@@ -186,7 +196,7 @@ def decryptDatabase(secretkey):
 		print "Unable to find database file."
 		exit(1)
 
-	return denc_data
+	return json.JSONDecoder().decode(denc_data)
 
 def main():
 	'''
@@ -205,6 +215,7 @@ def main():
 	ap.add_argument('-d', '--delete', metavar='tag', dest='delete', help='Delete an existing record')
 	ap.add_argument('-e', '--edit', dest='edit', help='Edit the database', action='store_true')
 	ap.add_argument('-v', '--view', metavar='tag', dest='view', help='View an individual record')
+	ap.add_argument('-p', '--password', metavar='tag', dest='password', help='View only the password for a given tag')
 
 # Optionals to the above
 	ap.add_argument('-U', metavar='username', dest='username', help='Username for the given tag')
@@ -263,7 +274,7 @@ def main():
 # ADD RECORD
 	if args.add:
 		data = decryptDatabase(skey)
-		data = addRecord(json.JSONDecoder().decode(data), args.add)
+		data = addRecord(data, args.add)
 
 		if args.username:
 			pass
@@ -276,7 +287,7 @@ def main():
 		if args.readonly:
 			pass
 
-		encryptDatabase(skey, json.JSONEncoder().encode(data))
+		encryptDatabase(skey, data)
 
 # DELETE RECORD
 	if args.delete:
@@ -290,7 +301,12 @@ def main():
 # VIEW RECORD
 	if args.view:
 		data = decryptDatabase(skey)
-		viewRecord(json.JSONDecoder().decode(data) arg.view)
+		viewRecord(data, args.view)
+
+# VIEW PASSWORD
+	if args.password:
+		data = decryptDatabase(skey)
+		viewPassword(data, args.password)	
 
 # PRINT UGLY JSON
 	if args.json:
