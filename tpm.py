@@ -7,9 +7,8 @@ tpm.py - Tiny Password Manager
 # Script information
 __author__					= "Michael Crilly"
 __copyright__				= "Public domain"
-#__credits__					= [ "Python developers",  "Linus Tarvolds", "The NSA" ]
 __license__					= "Public Domain"
-__version__					= "0.0.3"
+__version__					= "0.0.4"
 
 from getpass import getpass, getuser
 from pwgen import pwgen
@@ -53,14 +52,9 @@ def createDatabase():
 
 	if not exists(DB_DATA_FILE):
 		fd = open(DB_DATA_FILE, 'w')
-		if fd:
-			fd.write(r"{}".format(json.JSONEncoder().encode(structure)))
-			fd.close()
-		else:
-			print "Unable to create new database. Exiting."
-			exit(1)
-	else:
-		print "Please move or delete the existing database."
+		fd.close()
+
+	return structure
 
 def openDatabase():
 	'''
@@ -125,6 +119,9 @@ def editRecord(db, tag, attribute, newValue):
 	Edit the given tag, updating the attribute with the new value
 	'''
 	if tag in db['secrets']:
+		if db['secrets'][tag]['read_only'] == 1 and not attribute == "read_only":
+			print "This record is read-only. Turn this flag off first."
+			exit(1)
 		db['secrets'][tag][attribute] = newValue
 		return db
 	else:
@@ -159,6 +156,10 @@ def deleteRecord(db, tag):
 	Needs work!!
 	'''
 	if tag in db['secrets']:
+		if db['secrets'][tag]['read_only'] == 1:
+			print "This record is read-only. It can't be deleted."
+			exit(1)
+
 		del db['secrets'][tag]
 		return db
 	else:
@@ -267,26 +268,8 @@ def main():
 
 # Check the database exists before trying to do anything else
 	if not exists(DB_DATA_FILE) or args.create:
-		createDatabase()
-		fd = open(DB_DATA_FILE, 'rb')
-		data = fd.read()
-		fd.close()
+		data = createDatabase()
 		encryptDatabase(skey, data)
-
-# ENCRYPT
-#	if args.encrypt:
-#		backupDatabase()
-#		fd = open(DB_DATA_FILE, 'rb')
-#		data = fd.read()
-#		fd.close()
-#		encryptDatabase(secret_key, data)
-#		exit(0)
-
-# DECRYPT
-#	if args.decrypt:
-#		backupDatabase()
-#		decryptDatabase(secret_key, db_to='./unsafe')
-#		exit(0)
 
 # ADD RECORD
 	if args.add:
@@ -314,7 +297,7 @@ def main():
 				print "Read-only flags requires 0 (zero/false - default) or 1 (one/true)"
 				exit(1)
 			else:
-				data['secrets'][args.add]['readonly'] = int(args.readonly)
+				data['secrets'][args.add]['read_only'] = int(args.readonly)
 
 		encryptDatabase(skey, data)
 
@@ -336,7 +319,7 @@ def main():
 		elif args.enabled:
 			editRecord(data, args.edit, 'enabled', args.enabled)
 		elif args.readonly:
-			editRecord(data, args.edit, 'readonly', args.readonly)
+			editRecord(data, args.edit, 'read_only', args.readonly)
 		else:
 			print "No attribute given."
 			exit(1)
