@@ -29,9 +29,6 @@ import json
 DB_DATA_FILE				= './safe'
 SKEY_SALT					= 'Iex5Eiqueizaba5moS9es1wo3eethii3oniw7igh5eitie0olo'
 
-# 2013-07-18 - This should not be needed; mc
-#(DB_TMP_FD, TMP_DATA_FILE) 	= mkstemp(dir='/dev/shm')
-
 def createDatabase():
 	'''
 	Create a new empty database with the default structure.
