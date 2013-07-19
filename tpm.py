@@ -120,6 +120,17 @@ def addRecord(db, tag, username=None, system=None, sensitivity=None, enabled=Tru
 	db['secrets'][tag] = entry
 	return db
 
+def editRecord(db, tag, attribute, newValue):
+	'''
+	Edit the given tag, updating the attribute with the new value
+	'''
+	if tag in db['secrets']:
+		db['secrets'][tag][attribute] = newValue
+		return db
+	else:
+		print "Unable to find that tag in the database."
+		exit(1)
+
 def viewRecord(db, tag):
 	'''
 	Match the string and display the results
@@ -141,13 +152,18 @@ def viewPassword(db, tag):
 		print "Unable to find that tag in the database."
 		exit(1)
 
-def deleteRecord(tag):
+def deleteRecord(db, tag):
 	'''
 	Delete an existing record from the database.
 
 	Needs work!!
 	'''
-	pass
+	if tag in db['secrets']:
+		del db['secrets'][tag]
+		return db
+	else:
+		print "Unable to find that tag in the database."
+		exit(1)
 
 def dumpRecords(data, compact=False):
 	'''
@@ -212,10 +228,10 @@ def main():
 	ap.add_argument('-c', '--create-database', dest='create', help='Create a new database', action='store_true')
 
 # Database record handling options
-	ap.add_argument('-a', '--add', metavar='tag', dest='add', help='Add a new record')
-	ap.add_argument('-d', '--delete', metavar='tag', dest='delete', help='Delete an existing record')
-	ap.add_argument('-e', '--edit', dest='edit', help='Edit the database', action='store_true')
-	ap.add_argument('-v', '--view', metavar='tag', dest='view', help='View an individual record')
+	ap.add_argument('-a', '--add', metavar='tag', dest='add', help='Add a new record, auto-generating a password')
+	ap.add_argument('-d', '--delete', metavar='tag', dest='delete', help='Delete the given tag')
+	ap.add_argument('-e', '--edit', metavar='tag', dest='edit', help='Edit the given tag')
+	ap.add_argument('-v', '--view', metavar='tag', dest='view', help='View an individual record/tag')
 	ap.add_argument('-p', '--password', metavar='tag', dest='password', help='View only the password for a given tag')
 
 # Optionals to the above
@@ -304,13 +320,29 @@ def main():
 
 # DELETE RECORD
 	if args.delete:
-		exit(0)
+		data = decryptDatabase(skey)
+		data = deleteRecord(data, args.delete)
+		encryptDatabase(skey, data)
 
 # EDIT RECORD
 	if args.edit:
-		print "Edit the database"
-		exit(0)
+		data = decryptDatabase(skey)
+		if args.username:
+			editRecord(data, args.edit, 'username', args.username)
+		elif args.system:
+			editRecord(data, args.edit, 'system', args.system)
+		elif args.sensitivity:
+			editRecord(data, args.edit, 'sensitivity', args.sensitivity)
+		elif args.enabled:
+			editRecord(data, args.edit, 'enabled', args.enabled)
+		elif args.readonly:
+			editRecord(data, args.edit, 'readonly', args.readonly)
+		else:
+			print "No attribute given."
+			exit(1)
 
+		encryptDatabase(skey, data)
+	
 # VIEW RECORD
 	if args.view:
 		data = decryptDatabase(skey)
