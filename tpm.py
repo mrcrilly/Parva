@@ -21,7 +21,7 @@ from time import sleep
 
 # Cryptographic functions
 from Crypto.Cipher import AES
-from Cyrpto import Random
+from Crypto import Random
 from pbkdf2 import PBKDF2
 
 import json
@@ -52,7 +52,7 @@ def createDatabase():
 	}
 
 	if not exists(DB_DATA_FILE):
-		fd = open(TMP_DATA_FILE, 'w')
+		fd = open(DB_DATA_FILE, 'w')
 		if fd:
 			fd.write(r"{}".format(json.JSONEncoder().encode(structure)))
 			fd.close()
@@ -81,13 +81,11 @@ def openDatabase():
 def backupDatabase():
 	'''
 	Create a backup of the database. This is done before any manipulation to the database.
+	Note that we simply overwrite the existing backup.
 	'''
 	backup = "{}.backup".format(DB_DATA_FILE)
 
-	if os.path.exists(DB_DATA_FILE):
-		if os.path.exists(backup):
-			shredRemains(backup)
-
+	if exists(DB_DATA_FILE):
 		copy2(DB_DATA_FILE, backup)
 
 def printJSON(print_me):
@@ -96,50 +94,39 @@ def printJSON(print_me):
 	'''
 	print json.dumps(print_me, separators=(':', ','), sort_keys=True, indent=4)
 
-def addRecord(tag):
+def addRecord(db, tag, username=None, system=None, sensitivity=None, enabled=True, readOnly=False):
 	'''
 	Add a new record to the database
 	'''
-	db = openDatabase()
-
-# Tags need to be unique
+	# Tags need to be unique
 	if tag in db['secrets']:
 		print "Tags need to be unique."
 		exit(1)
 
-# Define the new entry.
+	# Define the new entry.
 	entry = {
 			r'password': pwgen(db['policy']['password_length'], no_symbols=db['policy']['no_symbols']),
 			r'expires': str(datetime.now() + timedelta(days=+(db['policy']['expires_in']))),
 			r'added': str(datetime.now()),
 			r'modified': None,
 			r'accessed': None,
-# Currently unused elements - for future use
-			r'username': None,
-			r'system': None,
-			r'sensitivity': None,
-			r'enabled': None,
-			r'read_only': None,
+			r'username': username,
+			r'system': system,
+			r'sensitivity': sensitivity,
+			r'enabled': enabled,
+			r'read_only': readOnly,
 	}
 
 	db['secrets'][tag] = entry
+	return db
 
-	fd = open(TMP_DATA_FILE, 'w')
-	if fd:
-		fd.write(r"{}".format(json.JSONEncoder().encode(db)))
-		fd.close()
-	else:
-		print "Problem opening database file."
-		exit(1)
-
-def viewRecord(tag):
+def viewRecord(db, tag):
 	'''
 	Match the string and display the results
 	'''
-	db = openDatabase()
 
 	if tag in db['secrets']:
-		printJSON(db['secrets'][tag])
+		dumpRecords(db['secrets'][tag], compact=False)
 	else:
 		print "Unable to find that tag in the database."
 		exit(1)
@@ -152,15 +139,19 @@ def deleteRecord(tag):
 	'''
 	pass
 
-def dumpRecords(data):
+def dumpRecords(data, compact=False):
 	'''
 	Dump all of the records into a compact JSON format.
 	'''
-	print json.dumps(data, separators=(',', ':'), sort_keys=True, indent=4)
+	if not compact:
+		print json.dumps(json.JSONDecoder().decode(data), separators=(',', ':'), sort_keys=True, indent=4)
+	else:
+		print json.dumps(json.JSONDecoder().decode(data))
 
-def encryptDatabase(secretkeyi, data):
+def encryptDatabase(secretkey, data):
 	'''
-	Issue an OpenSSL command to encrypt database.
+	Utilise the Crypto library and implement AES-256-CFB encryption to the database.
+	We don't use temporary files here - everything is kept in variables and therefore memory (we hope).
 	'''
 	IV = Random.new().read(16)
 	engine = AES.new(secretkey, AES.MODE_CFB, IV)
@@ -178,7 +169,7 @@ def encryptDatabase(secretkeyi, data):
 	
 def decryptDatabase(secretkey):
 	'''
-	Issue an OpenSSL command to decrypt the database.
+	Decrypt the database. We utilise AES-256-CFB mode.
 	'''
 	if exists(DB_DATA_FILE):
 		fd = open(DB_DATA_FILE, 'rb')
@@ -214,6 +205,13 @@ def main():
 	ap.add_argument('-d', '--delete', metavar='tag', dest='delete', help='Delete an existing record')
 	ap.add_argument('-e', '--edit', dest='edit', help='Edit the database', action='store_true')
 	ap.add_argument('-v', '--view', metavar='tag', dest='view', help='View an individual record')
+
+# Optionals to the above
+	ap.add_argument('-U', metavar='username', dest='username', help='Username for the given tag')
+	ap.add_argument('-S', metavar='system', dest='system', help='System for the given tag, such as an IP or hostname/URL')
+	ap.add_argument('-Z', metavar='sensitivity', dest='sensitivity', help='Define how sensitive this password is. 0=confidential; 1=classified; 2=secret; 3=top-secret')
+	ap.add_argument('-E', metavar='enabled', dest='enabled', help='Enable or disable the tag. Disabling excludes it from output and wanrs when viewed')
+	ap.add_argument('-R', metavar='readonly', dest='readonly', help='Set the entry as read-only. This prevents editing')
 
 # Database record exporting
 	ap.add_argument('-j', '--compact-json', dest='json', help='Dump the database: compact and ugly.', action='store_true')
@@ -264,7 +262,21 @@ def main():
 
 # ADD RECORD
 	if args.add:
-		exit(0)
+		data = decryptDatabase(skey)
+		data = addRecord(json.JSONDecoder().decode(data), args.add)
+
+		if args.username:
+			pass
+		if args.system:
+			pass
+		if args.sensitivity:
+			pass
+		if args.enabled:
+			pass
+		if args.readonly:
+			pass
+
+		encryptDatabase(skey, json.JSONEncoder().encode(data))
 
 # DELETE RECORD
 	if args.delete:
@@ -275,18 +287,21 @@ def main():
 		print "Edit the database"
 		exit(0)
 
+# VIEW RECORD
+	if args.view:
+		data = decryptDatabase(skey)
+		viewRecord(json.JSONDecoder().decode(data) arg.view)
+
 # PRINT UGLY JSON
 	if args.json:
 		data = decryptDatabase(skey)
-		dumpRecords(data)
+		dumpRecords(data, True)
 		exit(0)
 
 # PRINT PRETTY JSON
 	if args.pjson:
-		pass
-
-# PRINT RECORD
-	if args.view:
+		data = decryptDatabase(skey)
+		dumpRecords(data, False)
 		exit(0)
 
 if __name__ == "__main__":
