@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 '''
-tpm.py - Tiny Password Manager
+parva.py - A small password manager
 '''
 
 # Script information
