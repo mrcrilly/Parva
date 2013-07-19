@@ -8,7 +8,7 @@ tpm.py - Tiny Password Manager
 __author__					= "Michael Crilly"
 __copyright__				= "Public domain"
 __license__					= "Public Domain"
-__version__					= "0.0.4"
+__version__					= "0.0.5"
 
 from getpass import getpass, getuser
 from pwgen import pwgen
@@ -238,9 +238,16 @@ def main():
 # Optionals to the above
 	ap.add_argument('-U', metavar='username', dest='username', help='Username for the given tag')
 	ap.add_argument('-S', metavar='system', dest='system', help='System for the given tag, such as an IP or hostname/URL')
-	ap.add_argument('-Z', metavar='sensitivity', dest='sensitivity', help='Define how sensitive this password is. 0=confidential; 1=classified; 2=secret; 3=top-secret')
-	ap.add_argument('-E', metavar='enabled', dest='enabled', help='Enable or disable the tag. Disabling excludes it from output and wanrs when viewed')
-	ap.add_argument('-R', metavar='readonly', dest='readonly', help='Set the entry as read-only. This prevents editing')
+	ap.add_argument('-Z', metavar='sensitivity', dest='sensitivity', help='Define how sensitive this password is. 0=confidential; 1=classified; 2=secret; 3=top-secret', type=int)
+	ap.add_argument('-E', metavar='enabled', dest='enabled', help='Enable or disable the tag. Disabling excludes it from output and wanrs when viewed', type=int)
+	ap.add_argument('-R', metavar='readonly', dest='readonly', help='Set the entry as read-only. This prevents editing', type=int)
+
+# Database policy options
+	ap.add_argument('--policy', dest='policy', help='Display the database policies', action='store_true')
+	ap.add_argument('--policy-pw-length', metavar='len', dest='pwlen', help='Update the policy password length', type=int)
+	ap.add_argument('--policy-no-symbols', dest='symbols', help='Turn off symbols in passwords', action='store_true')
+	ap.add_argument('--policy-expires', metavar='days', dest='expires', help='Set the number of days the password expires', type=int)
+	ap.add_argument('--policy-auto-renew', dest='autorenew', help='Turn on or off auto password refresh.', action='store_true')
 
 # Database record exporting
 	ap.add_argument('-j', '--compact-json', dest='json', help='Dump the database: compact and ugly.', action='store_true')
@@ -269,6 +276,37 @@ def main():
 # Check the database exists before trying to do anything else
 	if not exists(DB_DATA_FILE) or args.create:
 		data = createDatabase()
+		encryptDatabase(skey, data)
+
+# Policy editing
+	if args.policy:
+		data = decryptDatabase(skey)
+		dumpRecords(data['policy'])
+
+	if args.pwlen:
+		data = decryptDatabase(skey)
+		data['policy']['password_length'] = args.pwlen
+		encryptDatabase(skey, data)
+
+	if args.symbols:
+		data = decryptDatabase(skey)
+		if data['policy']['no_symbols']:
+			data['policy']['no_symbols'] = False
+		else:
+			data['policy']['no_symbols'] = True
+		encryptDatabase(skey, data)
+
+	if args.expires:
+		data = decryptDatabase(skey)
+		data['policy']['expires_in'] = args.expires
+		encryptDatabase(skey, data)
+
+	if args.autorenew:
+		data = decryptDatabase(skey)
+		if data['policy']['auto_renew']:
+			data['policy']['auto_renew'] = False
+		else:
+			data['policy']['auto_renew'] = True
 		encryptDatabase(skey, data)
 
 # ADD RECORD
