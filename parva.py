@@ -12,9 +12,9 @@ __version__	= "0.0.6"
 
 from getpass import getpass
 from pwgen import pwgen
-from datetime import datetime,timedelta
-from os.path import exists, getsize
-from os import remove
+from datetime import datetime, timedelta
+from os.path import exists, getsize, isfile
+from os import remove, access
 from shutil import copy2, move
 from time import sleep
 
@@ -25,9 +25,20 @@ from pbkdf2 import PBKDF2
 
 import json
 
-# Database - we use a flat file
-DB_DATA_FILE = './safe'
+THE_VALUT = 'vault'
 SKEY_SALT = 'Iex5Eiqueizaba5moS9es1wo3eethii3oniw7igh5eitie0olo'
+
+def validateAccess():
+	'''
+	Helper function to determine if the THE_VAULT is a file and is
+	accessible by us.
+	'''
+	if exists(THE_VAULT) and isfile(THE_VAULT):
+		# Check we can actually read/write to it
+		if access(THE_VAULT, R_OK & W_OK):
+			return True
+		return False
+	return False
 
 def createDatabase():
 	'''
@@ -47,8 +58,8 @@ def createDatabase():
 		r'accessed': None
 	}
 
-	if not exists(DB_DATA_FILE):
-		fd = open(DB_DATA_FILE, 'w')
+	if not exists(THE_VAULT):
+		fd = open(THE_VAULT, 'w')
 		fd.close()
 
 	return structure
@@ -58,10 +69,10 @@ def backupDatabase():
 	Create a backup of the database. This is done before any manipulation to the database.
 	Note that we simply overwrite the existing backup.
 	'''
-	backup = "{}.backup".format(DB_DATA_FILE)
+	backup = "{}.backup".format(THE_VAULT)
 
-	if exists(DB_DATA_FILE):
-		copy2(DB_DATA_FILE, backup)
+	if exists(THE_VAULT):
+		copy2(THE_VAULT, backup)
 
 def addRecord(db, tag, username=None, system=None, sensitivity=None, enabled=True, readOnly=False):
 	'''
@@ -159,14 +170,14 @@ def encryptDatabase(secretkey, data):
 	IV = Random.new().read(16)
 	engine = AES.new(secretkey, AES.MODE_CFB, IV)
 
-	if exists(DB_DATA_FILE):
+	if exists(THE_VAULT):
 		backupDatabase()
-		fd = open("{}.swap".format(DB_DATA_FILE), 'wb')
+		fd = open("{}.swap".format(THE_VAULT), 'wb')
 		if fd:
 			jdata = json.JSONEncoder().encode(data)
 			fd.write(IV + engine.encrypt(jdata))
 			fd.close()
-			move("{}.swap".format(DB_DATA_FILE), DB_DATA_FILE)
+			move("{}.swap".format(THE_VAULT), THE_VAULT)
 		else:
 			print "Problem opening database."
 			exit(1)
@@ -177,8 +188,8 @@ def decryptDatabase(secretkey):
 	'''
 	Decrypt the database. We utilise AES-256-CFB mode.
 	'''
-	if exists(DB_DATA_FILE):
-		fd = open(DB_DATA_FILE, 'rb')
+	if exists(THE_VAULT):
+		fd = open(THE_VAULT, 'rb')
 		if fd:
 			IV = fd.read(16)
 			data = fd.read()
@@ -252,7 +263,7 @@ def main():
 		skey = PBKDF2(args.key, SKEY_SALT).read(32)
 
 # Check the database exists before trying to do anything else
-	if not exists(DB_DATA_FILE) or args.create:
+	if not exists(THE_VAULT) or args.create:
 		data = createDatabase()
 		encryptDatabase(skey, data)
 
