@@ -42,7 +42,7 @@ def createDatabase():
 			r'expires_in': 90,
 			r'auto_renew': True
 		},
-		r'created': str(datetime.now()),
+		r'created': str(datetime.now().isoformat()),
 		r'modified': None,
 		r'accessed': None
 	}
@@ -73,10 +73,11 @@ def addRecord(db, tag, username=None, system=None, sensitivity=None, enabled=Tru
 		exit(1)
 
 	# Define the new entry.
+	p_date = (datetime.now() + timedelta(days=+(db['policy']['expires_in']))).isoformat()
 	entry = {
 			r'password': pwgen(db['policy']['password_length'], no_symbols=db['policy']['no_symbols']),
-			r'expires': str(datetime.now() + timedelta(days=+(db['policy']['expires_in']))),
-			r'added': str(datetime.now()),
+			r'expires': p_date,
+			r'added': str(datetime.now().isoformat()),
 			r'modified': None,
 			r'accessed': None,
 			r'username': username,
