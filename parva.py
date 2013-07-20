@@ -5,17 +5,17 @@ parva.py - A small password manager
 '''
 
 # Script information
-__author__					= "Michael Crilly"
-__copyright__				= "Public domain"
-__license__					= "Public Domain"
-__version__					= "0.0.5"
+__author__ = "Michael Crilly"
+__copyright__ = "Public domain"
+__license__	= "Public Domain"
+__version__	= "0.0.5"
 
 from getpass import getpass, getuser
 from pwgen import pwgen
 from datetime import datetime,timedelta
 from os.path import exists, getsize
 from os import remove
-from shutil import copy2
+from shutil import copy2, move
 from time import sleep
 
 # Cryptographic functions
@@ -26,8 +26,8 @@ from pbkdf2 import PBKDF2
 import json
 
 # Database - we use a flat file
-DB_DATA_FILE				= './safe'
-SKEY_SALT					= 'Iex5Eiqueizaba5moS9es1wo3eethii3oniw7igh5eitie0olo'
+DB_DATA_FILE = './safe'
+SKEY_SALT = 'Iex5Eiqueizaba5moS9es1wo3eethii3oniw7igh5eitie0olo'
 
 def createDatabase():
 	'''
@@ -52,22 +52,6 @@ def createDatabase():
 		fd.close()
 
 	return structure
-
-def openDatabase():
-	'''
-	Open up the database, pulling in the JSON data for manipulation.
-	'''
-	if exists(DB_DATA_FILE):
-		fd = open(DB_DATA_FILE, 'rb')
-		if fd:
-			return(json.JSONDecoder().decode(fd.read()))
-			fd.close()
-		else:
-			print "Problem opening database file."
-			exit(1)
-	else:
-		print "Database file doesn't exist."
-		exit(1)
 
 def backupDatabase():
 	'''
@@ -181,11 +165,13 @@ def encryptDatabase(secretkey, data):
 	engine = AES.new(secretkey, AES.MODE_CFB, IV)
 
 	if exists(DB_DATA_FILE):
-		fd = open(DB_DATA_FILE, 'wb')
+		backupDatabase()
+		fd = open("{}.swap".format(DB_DATA_FILE), 'wb')
 		if fd:
 			jdata = json.JSONEncoder().encode(data)
 			fd.write(IV + engine.encrypt(jdata))
 			fd.close()
+			move("{}.swap".format(DB_DATA_FILE), DB_DATA_FILE)
 		else:
 			print "Problem opening database."
 			exit(1)
