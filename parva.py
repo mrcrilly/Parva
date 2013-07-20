@@ -5,12 +5,12 @@ parva.py - A small password manager
 '''
 
 # Script information
-__author__ = "Michael Crilly"
+__author__ = "Michael Crilly <mrcrilly@gmail.com>"
 __copyright__ = "ASFv2.0"
 __license__	= "ASFv2.0"
 __version__	= "0.0.6"
 
-from getpass import getpass, getuser
+from getpass import getpass
 from pwgen import pwgen
 from datetime import datetime,timedelta
 from os.path import exists, getsize
