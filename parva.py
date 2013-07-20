@@ -6,9 +6,9 @@ parva.py - A small password manager
 
 # Script information
 __author__ = "Michael Crilly"
-__copyright__ = "Public domain"
-__license__	= "Public Domain"
-__version__	= "0.0.5"
+__copyright__ = "ASFv2.0"
+__license__	= "ASFv2.0"
+__version__	= "0.0.6"
 
 from getpass import getpass, getuser
 from pwgen import pwgen
@@ -62,12 +62,6 @@ def backupDatabase():
 
 	if exists(DB_DATA_FILE):
 		copy2(DB_DATA_FILE, backup)
-
-def printJSON(print_me):
-	'''
-	Central point for defining pretty JSON printing
-	'''
-	print json.dumps(print_me, separators=(':', ','), sort_keys=True, indent=4)
 
 def addRecord(db, tag, username=None, system=None, sensitivity=None, enabled=True, readOnly=False):
 	'''
