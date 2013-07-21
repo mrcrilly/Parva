@@ -85,6 +85,7 @@ def addRecord(db, tag, username=None, system=None, sensitivity=None, enabled=Tru
 	p_date = (datetime.now() + timedelta(days=+(db['policy']['expires_in']))).isoformat()
 	entry = {
 			r'password': generatePassword(db['policy']),
+			r'prev_password': None,
 			r'expires': p_date,
 			r'added': str(datetime.now().isoformat()),
 			r'modified': None,
@@ -99,19 +100,20 @@ def addRecord(db, tag, username=None, system=None, sensitivity=None, enabled=Tru
 	db['secrets'][tag] = entry
 	return db
 
-def editRecord(db, tag, attribute, newValue):
+def editRecord(record, attribute, newValue):
 	'''
 	Edit the given tag, updating the attribute with the new value
 	'''
-	if tag in db['secrets']:
-		if db['secrets'][tag]['read_only'] == 1 and not attribute == "read_only":
-			print "This record is read-only. Turn this flag off first."
-			exit(1)
-		db['secrets'][tag][attribute] = newValue
-		return db
-	else:
-		print "Unable to find that tag in the database."
+
+	if record['read_only'] == 1 and not attribute == "read_only":
+		print "This record is read-only. Turn this flag off first."
 		exit(1)
+		
+	if record['sensitivity'] == 3:
+		print "Warning! S3 password!"
+		
+	record[attribute] = newValue
+	return record
 
 def viewRecord(db, tag):
 	'''
@@ -175,12 +177,6 @@ def deleteRecord(db, tag):
 	else:
 		print "Unable to find that tag in the database."
 		exit(1)
-		
-def updateAccessDateTime(db, tag):
-	'''
-	Updates the last accessed date and time for the given records
-	'''
-	pass
 
 def dumpRecords(data, compact=False):
 	'''
@@ -194,6 +190,26 @@ def dumpRecords(data, compact=False):
 		print json.dumps(data, separators=(',', ':'), sort_keys=True, indent=4)
 	else:
 		print json.dumps(data)
+		
+def expiryCheck(record):
+	'''
+	Check if a password has expired or not.
+	'''
+	# Basic date check to make sure password hasn't expired
+	c_date = datetime.now().isoformat()
+	p_date = record['expires']
+	if p_date < c_date:
+		print "This record's password has expired - generating a new one."
+		
+		record['prev_password'] = record['password']
+		if record['sensitivity'] >= 2:
+			record['password'] = generatePassword(data['policy'], True)
+		else:
+			record['password'] = generatePassword(data['policy'])
+			
+		record['expires'] = (datetime.now()+timedelta(days=+data['policy']['expires_in'])).isoformat()
+
+	return record
 
 def encryptDatabase(secretkey, data):
 	'''
@@ -377,20 +393,25 @@ def main():
 # EDIT RECORD
 	if args.edit:
 		data = decryptDatabase(skey)
+		record = data['secrets'][args.edit]
+		
+		record = expiryCheck(record)
+		
 		if args.username:
-			data = editRecord(data, args.edit, 'username', args.username)
+			record = editRecord(record, 'username', args.username)
 		elif args.system:
-			data = editRecord(data, args.edit, 'system', args.system)
+			record = editRecord(record, 'system', args.system)
 		elif args.sensitivity:
-			data = editRecord(data, args.edit, 'sensitivity', args.sensitivity)
+			record = editRecord(record, 'sensitivity', args.sensitivity)
 		elif args.enabled:
-			data = editRecord(data, args.edit, 'enabled', args.enabled)
+			record = editRecord(record, 'enabled', args.enabled)
 		elif args.readonly:
-			data = editRecord(data, args.edit, 'read_only', args.readonly)
+			record = editRecord(record, 'read_only', args.readonly)
 		else:
 			print "No attribute given."
 			exit(1)
-
+			
+		data['secrets'][args.edit] = record
 		encryptDatabase(skey, data)
 	
 # VIEW RECORD
