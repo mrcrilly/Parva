@@ -36,7 +36,8 @@ def createDatabase():
 		r'secrets': {},
 		r'policy': {
 			r'revision': 0,
-			r'password_length': 50,
+			r'password_length': 30,
+			r'sensitivity_extra': 20,
 			r'no_symbols': False,
 			r'expires_in': 90,
 			r'auto_renew': True
@@ -62,6 +63,15 @@ def backupDatabase():
 	if exists(THE_VAULT):
 		copy2(THE_VAULT, backup)
 
+def generatePassword(policy, sensitive=False):
+	'''
+	General purpose password generator
+	'''
+	if not sensitive:
+		return pwgen(policy['password_length'], no_symbols=policy['no_symbols'])
+	else:
+		return pwgen(policy['password_length']+policy['sensitivity_extra'], no_symbols=policy['no_symbols'])
+
 def addRecord(db, tag, username=None, system=None, sensitivity=None, enabled=True, readOnly=False):
 	'''
 	Add a new record to the database
@@ -71,10 +81,10 @@ def addRecord(db, tag, username=None, system=None, sensitivity=None, enabled=Tru
 		print "Tags need to be unique."
 		exit(1)
 
-	# Define the new entry.
+	# Set up the expiry date in ISOFormat
 	p_date = (datetime.now() + timedelta(days=+(db['policy']['expires_in']))).isoformat()
 	entry = {
-			r'password': pwgen(db['policy']['password_length'], no_symbols=db['policy']['no_symbols']),
+			r'password': generatePassword(db['policy']),
 			r'expires': p_date,
 			r'added': str(datetime.now().isoformat()),
 			r'modified': None,
@@ -108,7 +118,16 @@ def viewRecord(db, tag):
 	Match the string and display the results
 	'''
 	if tag in db['secrets']:
-		dumpRecords(db['secrets'][tag], compact=False)
+		print 
+		print "Tag:\t\t{}".format(tag)
+		print "Added:\t\t{}".format(db['secrets'][tag]['added'])
+		print "Expires:\t{}".format(db['secrets'][tag]['expires'])
+		
+		if not db['secrets'][tag]['sensitivity'] >= 2:
+			print "Password: \t{}".format(db['secrets'][tag]['password'])
+			
+		print
+		
 	else:
 		print "Unable to find that tag in the database."
 		exit(1)
@@ -118,6 +137,10 @@ def viewPassword(db, tag):
 	Print out only the password.
 	'''
 	if tag in db['secrets']:
+		if db['secrets'][tag]['sensitivity'] >= 2:
+			print "Warning! This is a sensitive password!"
+			sleep(3)
+			
 		pw = db['secrets'][tag]['password']
 		print "{}".format(pw)
 	else:
@@ -130,7 +153,11 @@ def searchRecords(db, term):
 	'''
 	secrets = [tag for tag in db['secrets'] if term in tag]
 	for secret in secrets:
-		dumpRecords(db['secrets'][secret])
+		viewRecord(db, secret)
+		
+	# Return the records we viewed so we can update
+	# their acces dates and times
+	return secrets
 
 def deleteRecord(db, tag):
 	'''
@@ -148,11 +175,21 @@ def deleteRecord(db, tag):
 	else:
 		print "Unable to find that tag in the database."
 		exit(1)
+		
+def updateAccessDateTime(db, tag):
+	'''
+	Updates the last accessed date and time for the given records
+	'''
+	pass
 
 def dumpRecords(data, compact=False):
 	'''
 	Dump all of the records into a compact JSON format.
 	'''
+	
+	if 'password' in data:
+		del data['password']
+
 	if not compact:
 		print json.dumps(data, separators=(',', ':'), sort_keys=True, indent=4)
 	else:
@@ -221,6 +258,7 @@ def main():
 	ap.add_argument('-s', '--search', metavar='term', dest='search', help='Perform a search within the database')
 	ap.add_argument('-p', '--password', metavar='tag', dest='password', help='View only the password for a given tag')
 	ap.add_argument('-k', '--key', dest='key', help='The secret key')
+	ap.add_argument('-r', '--rotate-password', metavar='tag', dest='rotate', help='Rotate password for given tag')
 
 # Optionals to the above
 	ap.add_argument('-U', metavar='username', dest='username', help='Username for the given tag')
@@ -311,6 +349,9 @@ def main():
 				print "Sensitivity values supported: 0, 1, 2 and 3."
 				exit(1)
 			else:
+				if int(args.sensitivity) >= 2:
+					data['secrets'][args.add]['password'] = generatePassword(data['policy'], True)
+						
 				data['secrets'][args.add]['sensitivity'] = int(args.sensitivity)
 		if args.enabled:
 			if int(args.enabled) < 0 or int(args.enabled) > 1:
@@ -337,15 +378,15 @@ def main():
 	if args.edit:
 		data = decryptDatabase(skey)
 		if args.username:
-			editRecord(data, args.edit, 'username', args.username)
+			data = editRecord(data, args.edit, 'username', args.username)
 		elif args.system:
-			editRecord(data, args.edit, 'system', args.system)
+			data = editRecord(data, args.edit, 'system', args.system)
 		elif args.sensitivity:
-			editRecord(data, args.edit, 'sensitivity', args.sensitivity)
+			data = editRecord(data, args.edit, 'sensitivity', args.sensitivity)
 		elif args.enabled:
-			editRecord(data, args.edit, 'enabled', args.enabled)
+			data = editRecord(data, args.edit, 'enabled', args.enabled)
 		elif args.readonly:
-			editRecord(data, args.edit, 'read_only', args.readonly)
+			data = editRecord(data, args.edit, 'read_only', args.readonly)
 		else:
 			print "No attribute given."
 			exit(1)
@@ -366,6 +407,15 @@ def main():
 	if args.search:
 		data = decryptDatabase(skey)
 		searchRecords(data, args.search)
+		
+# CYCLE PASSWORD
+	if args.rotate:
+		data = decryptDatabase(skey)
+		if data['secrets'][args.rotate]['sensitivity'] >= 2:
+			data['secrets'][args.rotate]['password'] = generatePassword(data['policy'], True)
+		else:
+			data['secrets'][args.rotate]['password'] = generatePassword(data['policy'])
+		encryptDatabase(skey, data)
 
 # PRINT UGLY JSON
 	if args.json:
