@@ -14,7 +14,7 @@ from getpass import getpass
 from pwgen import pwgen
 from datetime import datetime, timedelta
 from os.path import exists, getsize, isfile
-from os import remove, access
+from os import remove, access, R_OK, W_OK
 from shutil import copy2, move
 from time import sleep
 
@@ -25,20 +25,8 @@ from pbkdf2 import PBKDF2
 
 import json
 
-THE_VALUT = 'vault'
+THE_VAULT = 'vault'
 SKEY_SALT = 'Iex5Eiqueizaba5moS9es1wo3eethii3oniw7igh5eitie0olo'
-
-def validateAccess():
-	'''
-	Helper function to determine if the THE_VAULT is a file and is
-	accessible by us.
-	'''
-	if exists(THE_VAULT) and isfile(THE_VAULT):
-		# Check we can actually read/write to it
-		if access(THE_VAULT, R_OK & W_OK):
-			return True
-		return False
-	return False
 
 def createDatabase():
 	'''
@@ -131,10 +119,18 @@ def viewPassword(db, tag):
 	'''
 	if tag in db['secrets']:
 		pw = db['secrets'][tag]['password']
-		print "Password: {}".format(pw)
+		print "{}".format(pw)
 	else:
 		print "Unable to find that tag in the database."
 		exit(1)
+
+def searchRecords(db, term):
+	'''
+	Search the JSON DB's tags for "term"
+	'''
+	secrets = [tag for tag in db['secrets'] if term in tag]
+	for secret in secrets:
+		dumpRecords(db['secrets'][secret])
 
 def deleteRecord(db, tag):
 	'''
@@ -222,7 +218,9 @@ def main():
 	ap.add_argument('-d', '--delete', metavar='tag', dest='delete', help='Delete the given tag')
 	ap.add_argument('-e', '--edit', metavar='tag', dest='edit', help='Edit the given tag')
 	ap.add_argument('-v', '--view', metavar='tag', dest='view', help='View an individual record/tag')
+	ap.add_argument('-s', '--search', metavar='term', dest='search', help='Perform a search within the database')
 	ap.add_argument('-p', '--password', metavar='tag', dest='password', help='View only the password for a given tag')
+	ap.add_argument('-k', '--key', dest='key', help='The secret key')
 
 # Optionals to the above
 	ap.add_argument('-U', metavar='username', dest='username', help='Username for the given tag')
@@ -243,22 +241,23 @@ def main():
 	ap.add_argument('-J', '--pretty-json', dest='pjson', help='Dump the database: verbose and pretty.', action='store_true')
 
 # Encryption and Decryption flags
-	ap.add_argument('--encrypt', dest='encrypt', help='Encrypt the database', action='store_true')
-	ap.add_argument('--decrypt', dest='decrypt', help="Decrypt the database (risky)", action='store_true')
-	ap.add_argument('-k', '--key', dest='key', help='The secret key')
+#	ap.add_argument('--encrypt', dest='encrypt', help='Encrypt the database', action='store_true')
+#	ap.add_argument('--decrypt', dest='decrypt', help="Decrypt the database (risky)", action='store_true')
 
 	args = ap.parse_args()
 
 # If we're not passed the key via -k/--key, ask for the password
 	if not args.key:
 		skey_1 = getpass("Secret Key: ")
-		skey_2 = getpass("Secret Key (again): ")
+		if args.create:
+			# Make sure the key is right first time around
+			skey_2 = getpass("Secret Key (again): ")
 		
-		if not skey_1 == skey_2:
-			print "The secret keys don't match."
-			exit(1)
-		else:
-			skey = PBKDF2(skey_1, SKEY_SALT).read(32)		
+			if not skey_1 == skey_2:
+				print "The secret keys don't match."
+				exit(1)
+				
+		skey = PBKDF2(skey_1, SKEY_SALT).read(32)		
 	else:
 		skey = PBKDF2(args.key, SKEY_SALT).read(32)
 
@@ -362,6 +361,11 @@ def main():
 	if args.password:
 		data = decryptDatabase(skey)
 		viewPassword(data, args.password)	
+		
+# SEARCH DATABASE
+	if args.search:
+		data = decryptDatabase(skey)
+		searchRecords(data, args.search)
 
 # PRINT UGLY JSON
 	if args.json:
