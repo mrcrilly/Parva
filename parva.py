@@ -58,10 +58,8 @@ def backupDatabase():
 	Create a backup of the database. This is done before any manipulation to the database.
 	Note that we simply overwrite the existing backup.
 	'''
-	backup = "{}.backup".format(THE_VAULT)
-
 	if exists(THE_VAULT):
-		copy2(THE_VAULT, backup)
+		copy2(THE_VAULT, "{}.backup".format(THE_VAULT))
 
 def generatePassword(policy, sensitive=False):
 	'''
@@ -128,11 +126,11 @@ def viewRecord(record):
 	print "Expires:\t{}".format(record['expires'])		
 	print
 
-def viewPassword(record, tag):
+def viewPassword(record):
 	'''
 	Print out only the password.
 	'''
-	if db['secrets'][tag]['sensitivity'] >= 2:
+	if record['sensitivity'] >= 2:
 		print "Warning! S2 or greater password!"
 		
 	print "{}".format(record['password'])
@@ -143,17 +141,15 @@ def searchRecords(db, term):
 	'''
 	secrets = [tag for tag in db['secrets'] if term in tag]
 	for secret in secrets:
-		viewRecord(db, secret)
+		viewRecord(secret)
 		
 	# Return the records we viewed so we can update
-	# their acces dates and times
+	# their access dates and times
 	return secrets
 
 def deleteRecord(db, tag):
 	'''
 	Delete an existing record from the database.
-
-	Needs work!!
 	'''
 	if tag in db['secrets']:
 		if db['secrets'][tag]['read_only'] == 1:
@@ -168,7 +164,7 @@ def deleteRecord(db, tag):
 
 def dumpRecords(data, compact=False):
 	'''
-	Dump all of the records into a compact JSON format.
+	Dump all of the records
 	'''
 	
 	if 'password' in data:
