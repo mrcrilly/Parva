@@ -91,8 +91,6 @@ def addRecord(db, tag, username=None, system=None, sensitivity=None, enabled=Tru
 			r'username': username,
 			r'system': system,
 			r'sensitivity': sensitivity,
-			r'enabled': enabled,
-			r'read_only': readOnly,
 	}
 
 	db['secrets'][tag] = entry
@@ -121,9 +119,12 @@ def viewRecord(record):
 	
 	if not record['sensitivity'] >= 2:
 		print "Password: \t{}".format(record['password'])
+	else:
+		print "Password: \t<hidden>"
 
-#	print "Added:\t\t{}".format(record['added'])
-	print "Expires:\t{}".format(record['expires'])		
+	print "Added:\t\t{}".format(record['added'])
+	print "Expires:\t{}".format(record['expires'])	
+				
 	print
 
 def viewPassword(record):
@@ -141,7 +142,7 @@ def searchRecords(db, term):
 	'''
 	secrets = [tag for tag in db['secrets'] if term in tag]
 	for secret in secrets:
-		viewRecord(secret)
+		viewRecord(db['secrets'][secret])
 		
 	# Return the records we viewed so we can update
 	# their access dates and times
@@ -152,9 +153,9 @@ def deleteRecord(db, tag):
 	Delete an existing record from the database.
 	'''
 	if tag in db['secrets']:
-		if db['secrets'][tag]['read_only'] == 1:
-			print "This record is read-only. It can't be deleted."
-			exit(1)
+		#if db['secrets'][tag]['read_only'] == 1:
+		#	print "This record is read-only. It can't be deleted."
+		#	exit(1)
 
 		del db['secrets'][tag]
 		return db
@@ -264,8 +265,8 @@ def main():
 	ap.add_argument('-U', metavar='username', dest='username', help='Username for the given tag')
 	ap.add_argument('-S', metavar='system', dest='system', help='System for the given tag, such as an IP or hostname/URL')
 	ap.add_argument('-Z', metavar='sensitivity', dest='sensitivity', help='Define how sensitive this password is. 0=confidential; 1=classified; 2=secret; 3=top-secret', type=int)
-	ap.add_argument('-E', metavar='enabled', dest='enabled', help='Enable or disable the tag. Disabling excludes it from output and wanrs when viewed', type=int)
-	ap.add_argument('-R', metavar='readonly', dest='readonly', help='Set the entry as read-only. This prevents editing', type=int)
+#	ap.add_argument('-E', metavar='enabled', dest='enabled', help='Enable or disable the tag. Disabling excludes it from output and wanrs when viewed', type=int)
+#	ap.add_argument('-R', metavar='readonly', dest='readonly', help='Set the entry as read-only. This prevents editing', type=int)
 
 # Database policy options
 	ap.add_argument('--policy', dest='policy', help='Display the database policies', action='store_true')
@@ -387,10 +388,10 @@ def main():
 			record = editRecord(record, 'system', args.system)
 		elif args.sensitivity:
 			record = editRecord(record, 'sensitivity', args.sensitivity)
-		elif args.enabled:
-			record = editRecord(record, 'enabled', args.enabled)
-		elif args.readonly:
-			record = editRecord(record, 'read_only', args.readonly)
+#		elif args.enabled:
+#			record = editRecord(record, 'enabled', args.enabled)
+#		elif args.readonly:
+#			record = editRecord(record, 'read_only', args.readonly)
 		else:
 			print "No attribute given."
 			exit(1)
@@ -406,7 +407,7 @@ def main():
 # VIEW PASSWORD
 	if args.password:
 		data = decryptDatabase(skey)
-		viewPassword(data, args.password)	
+		viewPassword(data['secrets'][args.password])	
 		
 # SEARCH DATABASE
 	if args.search:
