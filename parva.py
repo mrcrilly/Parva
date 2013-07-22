@@ -115,39 +115,27 @@ def editRecord(record, attribute, newValue):
 	record[attribute] = newValue
 	return record
 
-def viewRecord(db, tag):
+def viewRecord(record):
 	'''
 	Match the string and display the results
 	'''
-	if tag in db['secrets']:
-		print 
-		print "Tag:\t\t{}".format(tag)
-		print "Added:\t\t{}".format(db['secrets'][tag]['added'])
-		print "Expires:\t{}".format(db['secrets'][tag]['expires'])
-		
-		if not db['secrets'][tag]['sensitivity'] >= 2:
-			print "Password: \t{}".format(db['secrets'][tag]['password'])
-			
-		print
-		
-	else:
-		print "Unable to find that tag in the database."
-		exit(1)
+	print 
+	
+	if not record['sensitivity'] >= 2:
+		print "Password: \t{}".format(record['password'])
 
-def viewPassword(db, tag):
+#	print "Added:\t\t{}".format(record['added'])
+	print "Expires:\t{}".format(record['expires'])		
+	print
+
+def viewPassword(record, tag):
 	'''
 	Print out only the password.
 	'''
-	if tag in db['secrets']:
-		if db['secrets'][tag]['sensitivity'] >= 2:
-			print "Warning! This is a sensitive password!"
-			sleep(3)
-			
-		pw = db['secrets'][tag]['password']
-		print "{}".format(pw)
-	else:
-		print "Unable to find that tag in the database."
-		exit(1)
+	if db['secrets'][tag]['sensitivity'] >= 2:
+		print "Warning! S2 or greater password!"
+		
+	print "{}".format(record['password'])
 
 def searchRecords(db, term):
 	'''
@@ -417,7 +405,7 @@ def main():
 # VIEW RECORD
 	if args.view:
 		data = decryptDatabase(skey)
-		viewRecord(data, args.view)
+		viewRecord(data['secrets'][args.view])
 
 # VIEW PASSWORD
 	if args.password:
