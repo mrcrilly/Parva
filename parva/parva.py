@@ -103,7 +103,7 @@ def viewRecord(record):
 	print 
 	
 	if record['system']:
-		print "System:\t{}".format(record['system'])
+		print "System:\t\t{}".format(record['system'])
 	
 	if record['username']:
 		print "Username:\t{}".format(record['username'])
@@ -251,10 +251,10 @@ def main():
 
 # Database policy options
 	ap.add_argument('--policy', dest='policy', help='Display the database policies', action='store_true')
-	ap.add_argument('--pw-length', metavar='len', dest='pwlen', help='Update the policy password length', type=int)
-	ap.add_argument('--no-symbols', dest='symbols', help='Turn off symbols in passwords', action='store_true')
+	ap.add_argument('--pwlen', metavar='len', dest='pwlen', help='Update the policy password length', type=int)
+	ap.add_argument('--nosymbols', dest='symbols', help='Turn off symbols in passwords', action='store_true')
 	ap.add_argument('--expires', metavar='days', dest='expires', help='Set the number of days the password expires', type=int)
-	ap.add_argument('--auto-renew', dest='autorenew', help='Turn on or off auto password refresh.', action='store_true')
+	ap.add_argument('--autorenew', dest='autorenew', help='Turn on or off auto password refresh.', action='store_true')
 
 # Database record exporting
 	ap.add_argument('-j', '--compact-json', dest='json', help='Dump the database: compact and ugly.', action='store_true')
