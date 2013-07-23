@@ -309,15 +309,15 @@ def main():
 		if args.system:
 			data['secrets'][args.add]['system'] = args.system
 			
-		print "New entry for '{0}'; password: {1}".format(args.add,	data['secrets'][args.add]['password'])
-
 		encryptDatabase(skey, data)
+		print "New entry for '{0}'; password: {1}".format(args.add,	data['secrets'][args.add]['password'])
 
 # DELETE RECORD
 	if args.delete:
 		data = decryptDatabase(skey)
 		data = deleteRecord(data, args.delete)
 		encryptDatabase(skey, data)
+		print "Deleted '{}'".format(args.delete)
 
 # EDIT RECORD
 	if args.edit:
