@@ -308,6 +308,8 @@ def main():
 			data['secrets'][args.add]['username'] = args.username
 		if args.system:
 			data['secrets'][args.add]['system'] = args.system
+			
+		print "New entry for '{0}'; password: {1}".format(args.add,	data['secrets'][args.add]['password'])
 
 		encryptDatabase(skey, data)
 
