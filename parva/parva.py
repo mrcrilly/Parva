@@ -350,16 +350,24 @@ def main():
 # VIEW RECORD
 	if args.view:
 		data = decryptDatabase(skey)
-		viewRecord(data['secrets'][args.view])
-		data['secrets'][args.view]['accessed'] = datetime.now().isoformat()
-		encryptDatabase(skey, data)
+		if args.view in data['secrets']:
+			viewRecord(data['secrets'][args.view])
+			data['secrets'][args.view]['accessed'] = datetime.now().isoformat()
+			encryptDatabase(skey, data)
+		else:
+			print "That record doesn't exist."
+			exit(1)
 
 # VIEW PASSWORD
 	if args.password:
 		data = decryptDatabase(skey)
-		viewPassword(data['secrets'][args.password])	
-		data['secrets'][args.view]['accessed'] = datetime.now().isoformat()
-		encryptDatabase(skey, data)
+		if args.password in data['secrets']:
+			viewPassword(data['secrets'][args.password])	
+			data['secrets'][args.password]['accessed'] = datetime.now().isoformat()
+			encryptDatabase(skey, data)
+		else:
+			print "That record doesn't exist."
+			exit(1)
 		
 # SEARCH DATABASE
 	if args.search:
