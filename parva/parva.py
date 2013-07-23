@@ -237,14 +237,13 @@ def main():
 	ap.add_argument('-c', '--create-database', dest='create', help='Create a new database', action='store_true')
 
 # Database record handling options
-	ap.add_argument('-a', '--add', metavar='tag', dest='add', help='Add a new record, auto-generating a password')
-	ap.add_argument('-d', '--delete', metavar='tag', dest='delete', help='Delete the given tag')
-	ap.add_argument('-e', '--edit', metavar='tag', dest='edit', help='Edit the given tag')
-	ap.add_argument('-v', '--view', metavar='tag', dest='view', help='View an individual record/tag')
-	ap.add_argument('-s', '--search', metavar='term', dest='search', help='Perform a search within the database')
-	ap.add_argument('-p', '--password', metavar='tag', dest='password', help='View only the password for a given tag')
-#	ap.add_argument('-k', '--key', dest='key', help='The secret key')
-	ap.add_argument('-r', '--rotate-password', metavar='tag', dest='rotate', help='Rotate password for given tag')
+	ap.add_argument('-a', metavar='tag', dest='add', help='Add a new record, auto-generating a password')
+	ap.add_argument('-d', metavar='tag', dest='delete', help='Delete the given tag')
+	ap.add_argument('-e', metavar='tag', dest='edit', help='Edit the given tag')
+	ap.add_argument('-v', metavar='tag', dest='view', help='View an individual record/tag')
+	ap.add_argument('-s', metavar='term', dest='search', help='Perform a search within the database')
+	ap.add_argument('-p', metavar='tag', dest='password', help='View only the password for a given tag')
+	ap.add_argument('-r', metavar='tag', dest='rotate', help='Rotate password for given tag')
 
 # Optionals to the above
 	ap.add_argument('-U', metavar='username', dest='username', help='Username for the given tag')
@@ -271,19 +270,16 @@ def main():
 	args = ap.parse_args()
 
 # If we're not passed the key via -k/--key, ask for the password
-	if not args.key:
-		skey_1 = getpass("Secret Key: ")
-		if args.create:
-			# Make sure the key is right first time around
-			skey_2 = getpass("Secret Key (again): ")
-		
-			if not skey_1 == skey_2:
-				print "The secret keys don't match."
-				exit(1)
-				
-		skey = PBKDF2(skey_1, SKEY_SALT).read(32)		
-	else:
-		skey = PBKDF2(args.key, SKEY_SALT).read(32)
+	skey_1 = getpass("Secret Key: ")
+	if args.create:
+		# Make sure the key is right first time around
+		skey_2 = getpass("Secret Key (again): ")
+	
+		if not skey_1 == skey_2:
+			print "The secret keys don't match."
+			exit(1)
+			
+	skey = PBKDF2(skey_1, SKEY_SALT).read(32)		
 
 # Check the database exists before trying to do anything else
 	if not exists(THE_VAULT) or args.create:
