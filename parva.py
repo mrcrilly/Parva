@@ -35,16 +35,13 @@ def createDatabase():
 	structure = {
 		r'secrets': {},
 		r'policy': {
-			r'revision': 0,
-			r'password_length': 30,
-			r'sensitivity_extra': 20,
+			r'password_length': 50,
 			r'no_symbols': False,
 			r'expires_in': 90,
 			r'auto_renew': True
 		},
 		r'created': str(datetime.now().isoformat()),
-		r'modified': None,
-		r'accessed': None
+		r'client_version': __version__,
 	}
 
 	if not exists(THE_VAULT):
@@ -61,14 +58,11 @@ def backupDatabase():
 	if exists(THE_VAULT):
 		copy2(THE_VAULT, "{}.backup".format(THE_VAULT))
 
-def generatePassword(policy, sensitive=False):
+def generatePassword(policy):
 	'''
 	General purpose password generator
 	'''
-	if not sensitive:
-		return pwgen(policy['password_length'], no_symbols=policy['no_symbols'])
-	else:
-		return pwgen(policy['password_length']+policy['sensitivity_extra'], no_symbols=policy['no_symbols'])
+	return pwgen(policy['password_length'], no_symbols=policy['no_symbols'])
 
 def addRecord(db, tag, username=None, system=None, sensitivity=None, enabled=True, readOnly=False):
 	'''
@@ -86,11 +80,9 @@ def addRecord(db, tag, username=None, system=None, sensitivity=None, enabled=Tru
 			r'prev_password': None,
 			r'expires': p_date,
 			r'added': str(datetime.now().isoformat()),
-			r'modified': None,
 			r'accessed': None,
 			r'username': username,
 			r'system': system,
-			r'sensitivity': sensitivity,
 	}
 
 	db['secrets'][tag] = entry
@@ -100,14 +92,7 @@ def editRecord(record, attribute, newValue):
 	'''
 	Edit the given tag, updating the attribute with the new value
 	'''
-
-	if record['read_only'] == 1 and not attribute == "read_only":
-		print "This record is read-only. Turn this flag off first."
-		exit(1)
-		
-	if record['sensitivity'] == 3:
-		print "Warning! S3 password!"
-		
+			
 	record[attribute] = newValue
 	return record
 
@@ -117,23 +102,32 @@ def viewRecord(record):
 	'''
 	print 
 	
-	if not record['sensitivity'] >= 2:
-		print "Password: \t{}".format(record['password'])
-	else:
-		print "Password: \t<hidden>"
+	if record['system']:
+		print "System:\t{}".format(record['system'])
+	
+	if record['username']:
+		print "Username:\t{}".format(record['username'])
 
-	print "Added:\t\t{}".format(record['added'])
-	print "Expires:\t{}".format(record['expires'])	
-				
+	print "Password:\t{}".format(record['password'])
+	print "Added:\t\t{}".format(trimDateTime(record['added']))
+	print "Expires:\t{}".format(trimDateTime(record['expires']))
+	
+	if record['accessed']:
+		print "Accessed:\t{}".format(trimDateTime(record['accessed']))		
+
 	print
+	
+def trimDateTime(isodatetime):
+	'''
+	Utility function for trimming out the fluff in ISO date times
+	'''
+	return isodatetime.replace('T', ' ', 1)[:-7]
 
 def viewPassword(record):
 	'''
 	Print out only the password.
 	'''
-	if record['sensitivity'] >= 2:
-		print "Warning! S2 or greater password!"
-		
+
 	print "{}".format(record['password'])
 
 def searchRecords(db, term):
@@ -141,31 +135,22 @@ def searchRecords(db, term):
 	Search the JSON DB's tags for "term"
 	'''
 	secrets = [tag for tag in db['secrets'] if term in tag]
-	for secret in secrets:
-		viewRecord(db['secrets'][secret])
-		
-	# Return the records we viewed so we can update
-	# their access dates and times
-	return secrets
+	if len(secrets) > 0:
+		for secret in secrets:
+			viewRecord(db['secrets'][secret])
+		return secrets
 
 def deleteRecord(db, tag):
 	'''
 	Delete an existing record from the database.
 	'''
 	if tag in db['secrets']:
-		#if db['secrets'][tag]['read_only'] == 1:
-		#	print "This record is read-only. It can't be deleted."
-		#	exit(1)
-
 		del db['secrets'][tag]
 		return db
-	else:
-		print "Unable to find that tag in the database."
-		exit(1)
 
 def dumpRecords(data, compact=False):
 	'''
-	Dump all of the records
+	Dump all of the records, minus passwords
 	'''
 	
 	if 'password' in data:
@@ -258,13 +243,13 @@ def main():
 	ap.add_argument('-v', '--view', metavar='tag', dest='view', help='View an individual record/tag')
 	ap.add_argument('-s', '--search', metavar='term', dest='search', help='Perform a search within the database')
 	ap.add_argument('-p', '--password', metavar='tag', dest='password', help='View only the password for a given tag')
-	ap.add_argument('-k', '--key', dest='key', help='The secret key')
+#	ap.add_argument('-k', '--key', dest='key', help='The secret key')
 	ap.add_argument('-r', '--rotate-password', metavar='tag', dest='rotate', help='Rotate password for given tag')
 
 # Optionals to the above
 	ap.add_argument('-U', metavar='username', dest='username', help='Username for the given tag')
 	ap.add_argument('-S', metavar='system', dest='system', help='System for the given tag, such as an IP or hostname/URL')
-	ap.add_argument('-Z', metavar='sensitivity', dest='sensitivity', help='Define how sensitive this password is. 0=confidential; 1=classified; 2=secret; 3=top-secret', type=int)
+#	ap.add_argument('-Z', metavar='sensitivity', dest='sensitivity', help='Define how sensitive this password is. 0=confidential; 1=classified; 2=secret; 3=top-secret', type=int)
 #	ap.add_argument('-E', metavar='enabled', dest='enabled', help='Enable or disable the tag. Disabling excludes it from output and wanrs when viewed', type=int)
 #	ap.add_argument('-R', metavar='readonly', dest='readonly', help='Set the entry as read-only. This prevents editing', type=int)
 
@@ -303,6 +288,7 @@ def main():
 # Check the database exists before trying to do anything else
 	if not exists(THE_VAULT) or args.create:
 		data = createDatabase()
+		addRecord(data, "Example - delete me?")
 		encryptDatabase(skey, data)
 
 # Policy editing
@@ -345,27 +331,6 @@ def main():
 			data['secrets'][args.add]['username'] = args.username
 		if args.system:
 			data['secrets'][args.add]['system'] = args.system
-		if args.sensitivity:
-			if int(args.sensitivity) < 0 or int(args.sensitivity) > 3:
-				print "Sensitivity values supported: 0, 1, 2 and 3."
-				exit(1)
-			else:
-				if int(args.sensitivity) >= 2:
-					data['secrets'][args.add]['password'] = generatePassword(data['policy'], True)
-						
-				data['secrets'][args.add]['sensitivity'] = int(args.sensitivity)
-		if args.enabled:
-			if int(args.enabled) < 0 or int(args.enabled) > 1:
-				print "Enabled flag requires 0 (zero/disabled) or 1 (one/enabled - default)"
-				exit(1)
-			else:
-				data['secrets'][args.add]['enabled'] = int(args.enabled)
-		if args.readonly:
-			if int(args.readonly) < 0 or int(args.readonly) > 1:
-				print "Read-only flags requires 0 (zero/false - default) or 1 (one/true)"
-				exit(1)
-			else:
-				data['secrets'][args.add]['read_only'] = int(args.readonly)
 
 		encryptDatabase(skey, data)
 
@@ -386,8 +351,8 @@ def main():
 			record = editRecord(record, 'username', args.username)
 		elif args.system:
 			record = editRecord(record, 'system', args.system)
-		elif args.sensitivity:
-			record = editRecord(record, 'sensitivity', args.sensitivity)
+#		elif args.sensitivity:
+#			record = editRecord(record, 'sensitivity', args.sensitivity)
 #		elif args.enabled:
 #			record = editRecord(record, 'enabled', args.enabled)
 #		elif args.readonly:
@@ -403,24 +368,28 @@ def main():
 	if args.view:
 		data = decryptDatabase(skey)
 		viewRecord(data['secrets'][args.view])
+		data['secrets'][args.view]['accessed'] = datetime.now().isoformat()
+		encryptDatabase(skey, data)
 
 # VIEW PASSWORD
 	if args.password:
 		data = decryptDatabase(skey)
 		viewPassword(data['secrets'][args.password])	
+		data['secrets'][args.view]['accessed'] = datetime.now().isoformat()
+		encryptDatabase(skey, data)
 		
 # SEARCH DATABASE
 	if args.search:
 		data = decryptDatabase(skey)
-		searchRecords(data, args.search)
+		results = searchRecords(data, args.search)
+		for secret in results:
+			data['secrets'][secret]['accessed'] = datetime.now().isoformat()
+			
 		
 # CYCLE PASSWORD
 	if args.rotate:
 		data = decryptDatabase(skey)
-		if data['secrets'][args.rotate]['sensitivity'] >= 2:
-			data['secrets'][args.rotate]['password'] = generatePassword(data['policy'], True)
-		else:
-			data['secrets'][args.rotate]['password'] = generatePassword(data['policy'])
+		data['secrets'][args.rotate]['password'] = generatePassword(data['policy'])
 		encryptDatabase(skey, data)
 
 # PRINT UGLY JSON
