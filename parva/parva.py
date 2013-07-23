@@ -248,9 +248,6 @@ def main():
 # Optionals to the above
 	ap.add_argument('-U', metavar='username', dest='username', help='Username for the given tag')
 	ap.add_argument('-S', metavar='system', dest='system', help='System for the given tag, such as an IP or hostname/URL')
-#	ap.add_argument('-Z', metavar='sensitivity', dest='sensitivity', help='Define how sensitive this password is. 0=confidential; 1=classified; 2=secret; 3=top-secret', type=int)
-#	ap.add_argument('-E', metavar='enabled', dest='enabled', help='Enable or disable the tag. Disabling excludes it from output and wanrs when viewed', type=int)
-#	ap.add_argument('-R', metavar='readonly', dest='readonly', help='Set the entry as read-only. This prevents editing', type=int)
 
 # Database policy options
 	ap.add_argument('--policy', dest='policy', help='Display the database policies', action='store_true')
@@ -262,10 +259,6 @@ def main():
 # Database record exporting
 	ap.add_argument('-j', '--compact-json', dest='json', help='Dump the database: compact and ugly.', action='store_true')
 	ap.add_argument('-J', '--pretty-json', dest='pjson', help='Dump the database: verbose and pretty.', action='store_true')
-
-# Encryption and Decryption flags
-#	ap.add_argument('--encrypt', dest='encrypt', help='Encrypt the database', action='store_true')
-#	ap.add_argument('--decrypt', dest='decrypt', help="Decrypt the database (risky)", action='store_true')
 
 	args = ap.parse_args()
 
@@ -347,12 +340,6 @@ def main():
 			record = editRecord(record, 'username', args.username)
 		elif args.system:
 			record = editRecord(record, 'system', args.system)
-#		elif args.sensitivity:
-#			record = editRecord(record, 'sensitivity', args.sensitivity)
-#		elif args.enabled:
-#			record = editRecord(record, 'enabled', args.enabled)
-#		elif args.readonly:
-#			record = editRecord(record, 'read_only', args.readonly)
 		else:
 			print "No attribute given."
 			exit(1)
@@ -381,7 +368,6 @@ def main():
 		for secret in results:
 			data['secrets'][secret]['accessed'] = datetime.now().isoformat()
 			
-		
 # CYCLE PASSWORD
 	if args.rotate:
 		data = decryptDatabase(skey)
