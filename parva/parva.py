@@ -100,22 +100,11 @@ def viewRecord(record):
 	'''
 	Match the string and display the results
 	'''
-	print 
-	
-	if record['system']:
-		print "System:\t\t{}".format(record['system'])
-	
-	if record['username']:
-		print "Username:\t{}".format(record['username'])
-
-	print "Password:\t{}".format(record['password'])
-	print "Added:\t\t{}".format(trimDateTime(record['added']))
-	print "Expires:\t{}".format(trimDateTime(record['expires']))
-	
 	if record['accessed']:
-		print "Accessed:\t{}".format(trimDateTime(record['accessed']))		
-
-	print
+		record['accessed'] = trimDateTime(record['accessed'])
+	record['added'] = trimDateTime(record['added'])
+	record['expires'] = trimDateTime(record['expires'])
+	print json.dumps(record, separators=(',', ':'), sort_keys=True, indent=4)
 	
 def trimDateTime(isodatetime):
 	'''
@@ -127,17 +116,16 @@ def viewPassword(record):
 	'''
 	Print out only the password.
 	'''
-
 	print "{}".format(record['password'])
 
 def searchRecords(db, term):
 	'''
 	Search the JSON DB's tags for "term"
 	'''
-	secrets = [tag for tag in db['secrets'] if term in tag]
+	secrets = [tag for tag in db if term in tag]
 	if len(secrets) > 0:
 		for secret in secrets:
-			viewRecord(db['secrets'][secret])
+			viewRecord(db[secret])
 		return secrets
 
 def deleteRecord(db, tag):
@@ -372,9 +360,13 @@ def main():
 # SEARCH DATABASE
 	if args.search:
 		data = decryptDatabase(skey)
-		results = searchRecords(data, args.search)
-		for secret in results:
+		#results = searchRecords(data['secrets'], args.search)
+		secrets = [tag for tag in data['secrets'] if args.search in tag]
+		for secret in secrets:
+			print "Found: {}".format(secret)
+			viewRecord(data['secrets'][secret])
 			data['secrets'][secret]['accessed'] = datetime.now().isoformat()
+		encryptDatabase(skey, data)
 			
 # CYCLE PASSWORD
 	if args.rotate:
