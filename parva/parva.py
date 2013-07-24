@@ -24,9 +24,11 @@ from time import sleep
 
 # Cryptographic functions
 from Crypto.Cipher import AES
+from Crypto.Hash import HMAC, SHA
 from Crypto import Random
 from pbkdf2 import PBKDF2
 
+import bcrypt
 import json
 
 REMOTE_VAULT = False
@@ -50,6 +52,7 @@ def createDatabase():
 			r'password_length': 50,
 			r'no_symbols': False,
 			r'expires_in': 90,
+			r'secret_hash': None,
 		},
 		r'created': str(datetime.now().isoformat()),
 		r'client_version': __version__,
@@ -92,7 +95,7 @@ def generatePassword(policy):
 	
 	return pwgen(policy['password_length'], no_symbols=policy['no_symbols'])
 
-def addRecord(db, tag, username=None, system=None):
+def addRecord(db, tag, password, username=None, system=None):
 	"""
 	Add a new record to the database by generating a JSON object and injecting it.
 	
@@ -106,18 +109,22 @@ def addRecord(db, tag, username=None, system=None):
 		JSON document
 	"""
 	
+	#if not signature:
+	#	raise ValueError('A cryptographic signature is required')
+	
 	if tag in db['secrets']:
-		raise LookupError('This tag does not exist in the database: {0}'.format(tag))
+		raise LookupError('This tag already exists in the database: {0}'.format(tag))
 
 	p_date = (datetime.now() + timedelta(days=+(db['policy']['expires_in']))).isoformat()
 	entry = {
-			r'password': generatePassword(db['policy']),
+			r'password': password,
 			r'prev_password': None,
 			r'expires': p_date,
 			r'added': str(datetime.now().isoformat()),
 			r'accessed': None,
 			r'username': username,
 			r'system': system,
+			r'signature': None,
 	}
 
 	db['secrets'][tag] = entry
@@ -150,11 +157,11 @@ def viewRecord(record):
 		None
 	"""
 	
-	if record['accessed']:
-		record['accessed'] = trimDateTime(record['accessed'])
+	#if record['accessed']:
+	#	record['accessed'] = trimDateTime(record['accessed'])
 		
-	record['added'] = trimDateTime(record['added'])
-	record['expires'] = trimDateTime(record['expires'])
+	#record['added'] = trimDateTime(record['added'])
+	#record['expires'] = trimDateTime(record['expires'])
 	print json.dumps(record, separators=(',', ':'), sort_keys=True, indent=4)
 	
 def trimDateTime(isodatetime):
@@ -170,23 +177,23 @@ def trimDateTime(isodatetime):
 	
 	return isodatetime.replace('T', ' ', 1)[:-7]
 
-def searchRecords(db, term):
-	"""
-	Search the JSON DB's tags for term.
-	
-	Attributes:
-		db		-- The database to search
-		term	-- The string term to find in tags
-		
-	Returns:
-		List of JSON objects; calls viewRecord()
-	"""
-	
-	secrets = [tag for tag in db if term in tag]
-	if len(secrets) > 0:
-		for secret in secrets:
-			viewRecord(db[secret])
-		return secrets
+#def searchRecords(db, term):
+#	"""
+#	Search the JSON DB's tags for term.
+#	
+#	Attributes:
+#		db		-- The database to search
+#		term	-- The string term to find in tags
+#		
+#	Returns:
+#		List of JSON objects; calls viewRecord()
+#	"""
+#	
+#	secrets = [tag for tag in db if term in tag]
+#	if len(secrets) > 0:
+#		for secret in secrets:
+#			viewRecord(db[secret])
+#		return secrets
 
 def deleteRecord(db, tag):
 	"""
@@ -245,31 +252,6 @@ def expiryCheck(record):
 
 	return record
 
-def openDatabase():
-	"""
-	Opens the database file and provides the three segments.
-	
-	Attributes:
-		None
-		
-	Returns:
-		Tuple; SALT, IV and Encrypted data
-	"""
-	
-	if exists(THE_VAULT):
-		fd = open(THE_VAULT, 'rb')
-		if fd:
-			db_salt = fd.read(len(SKEY_SALT))
-			db_iv = fd.read(16)
-			db_data = fd.read()
-			fd.close()
-		else:
-			raise IOError('Unable to open the database file: {0}'.format(THE_VAULT))
-	else:
-		raise IOError('Database file does not exist: {0}'.format(THE_VAULT))
-		
-	return (db_salt, db_iv, db_data)
-
 def encryptDatabase(secretkey, data):
 	"""
 	Utilise the Crypto library and implement AES-256-CFB encryption to the database.
@@ -290,7 +272,7 @@ def encryptDatabase(secretkey, data):
 		fd = open("{0}.swap".format(THE_VAULT), 'wb')
 		if fd:
 			jdata = json.JSONEncoder().encode(data)
-			edata = "{0}{1}{2}".format(SKEY_SALT, IV, engine.encrypt(jdata))
+			edata = "{0}{1}".format(IV, engine.encrypt(jdata))
 			fd.write(edata)
 			fd.close()
 			move("{0}.swap".format(THE_VAULT), THE_VAULT)
@@ -313,7 +295,8 @@ def decryptDatabase(secretkey):
 	if exists(THE_VAULT):
 		fd = open(THE_VAULT, 'rb')
 		if fd:
-			(salt, IV, data) = openDatabase()
+			IV = fd.read(16)
+			data = fd.read()
 			engine = AES.new(secretkey, AES.MODE_CFB, IV)
 			denc_data = engine.decrypt(data)
 			fd.close()
@@ -346,6 +329,29 @@ def getSecret(doubleCheck=False, salt=False):
 	else:
 		(salt, iv, data) = openDatabase()
 		return PBKDF2(skey_1, salt).read(32)
+
+def generateHMAC(secretkey, password):
+	"""
+	Generate a cryptographic HMAC from the record and sign the new record
+	
+	"""
+	
+	hmac = HMAC.new(secretkey, digestmod=SHA)
+	hmac.update(password)
+	return hmac.hexdigest()
+	
+def checkHMAC(secretkey, record):
+	"""
+	Check the authenticity of a record' HMAC
+	"""
+	r_hmac = generateHMAC(secretkey, "{0}{1}".format(record['password'], record['added']))
+	
+	print "gen: {0} | stored: {1}".format(r_hmac, record['signature'])
+	
+	if r_hmac == record['signature']:
+		return True
+	else:
+		return False
 
 def main():
 	"""
@@ -393,20 +399,12 @@ def main():
 	
 	# Check the database exists before trying to do anything else
 	if not exists(THE_VAULT) or args.create:
-		if not SKEY_SALT:
-			(salt, i, d) = openDatabase()
-			skey = getSecret(True, salt)
-		else:
-			skey = getSecret(True)
-			
+		skey = getSecret(True)			
 		data = createDatabase()
+		data['policy']['secret_hash'] = bcrypt.hashpw(skey, bcrypt.gensalt(15))
 		encryptDatabase(skey, data)
 	else:
-		if not SKEY_SALT:
-			(salt, i, d) = openDatabase()
-			skey = getSecret(salt=salt)
-		else:
-			skey = getSecret()
+		skey = getSecret()
 		
 	# Policy editing
 	if args.policy:
@@ -442,13 +440,17 @@ def main():
 	# ADD RECORD
 	if args.add:
 		data = decryptDatabase(skey)
-		data = addRecord(data, args.add)
+		
+		passw = generatePassword(data['policy'])
+		data = addRecord(data, args.add, passw)
+		passw_hmac = generateHMAC(skey, "{0}{1}".format(passw, data['secrets'][args.add]['added']))
 
 		if args.username:
 			data['secrets'][args.add]['username'] = args.username
 		if args.system:
 			data['secrets'][args.add]['system'] = args.system
 			
+		data['secrets'][args.add]['signature'] = passw_hmac			
 		encryptDatabase(skey, data)
 		print "New entry for '{0}'; password: {1}".format(args.add,	data['secrets'][args.add]['password'])
 
@@ -462,6 +464,11 @@ def main():
 	# EDIT RECORD
 	if args.edit:
 		data = decryptDatabase(skey)
+		
+		if not checkHMAC(skey, data['secrets'][args.edit]):
+			print "This record's signature does not match!"
+			exit(1)
+		
 		record = data['secrets'][args.edit]
 		record = expiryCheck(record)
 		
@@ -481,6 +488,11 @@ def main():
 	# VIEW RECORD
 	if args.view:
 		data = decryptDatabase(skey)
+
+		if not checkHMAC(skey, data['secrets'][args.view]):
+			print "This record's signature does not match!"
+			exit(1)
+		
 		if args.view in data['secrets']:
 			viewRecord(data['secrets'][args.view])
 			data['secrets'][args.view]['accessed'] = datetime.now().isoformat()
@@ -492,6 +504,11 @@ def main():
 	# VIEW PASSWORD
 	if args.password:
 		data = decryptDatabase(skey)
+		
+		if not checkHMAC(skey, data['secrets'][args.password]):
+			print "This record's signature does not match!"
+			exit(1)
+		
 		if args.password in data['secrets']:
 			print "{0}".format(data['secrets'][args.password])
 			data['secrets'][args.password]['accessed'] = datetime.now().isoformat()
@@ -503,9 +520,13 @@ def main():
 	# SEARCH DATABASE
 	if args.search:
 		data = decryptDatabase(skey)
-		#results = searchRecords(data['secrets'], args.search)
 		secrets = [tag for tag in data['secrets'] if args.search in tag]
 		for secret in secrets:
+		
+			if not checkHMAC(skey, data['secrets'][secret]):
+				print "This record's signature does not match!"
+				exit(1)
+		
 			print "Found: {0}".format(secret)
 			viewRecord(data['secrets'][secret])
 			data['secrets'][secret]['accessed'] = datetime.now().isoformat()
