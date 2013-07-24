@@ -1,20 +1,19 @@
 #!/usr/bin/env python
 
 '''
-parva.py - A small password manager
+parva.py - A small password manager.
 '''
 
 # Script information
 __author__ = "Michael Crilly <mrcrilly@gmail.com>"
-__copyright__ = "ASFv2.0"
-__license__	= "ASFv2.0"
-__version__	= "0.0.6"
+__copyright__ = "Not defined"
+__license__	= "Not defined"
+__version__	= "1.0.6"
 
 from getpass import getpass
 from pwgen import pwgen
 from datetime import datetime, timedelta
-from os.path import exists, getsize, isfile
-from os import remove, access, R_OK, W_OK
+from os.path import exists
 from shutil import copy2, move
 from time import sleep
 
