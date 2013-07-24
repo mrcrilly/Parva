@@ -13,7 +13,9 @@ Contact:		mrcrilly@gmail.com
 __author__ = "Michael Crilly <mrcrilly@gmail.com>"
 __copyright__ = "Not defined"
 __license__	= "Not defined"
-__version__	= "2.1.8"
+
+# Not in use yet
+__version__	= "0.0.0"
 
 from getpass import getpass
 from pwgen import pwgen
