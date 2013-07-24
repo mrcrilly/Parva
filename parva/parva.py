@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 
-'''
+"""
 Script:			parva.py
 Application:	Parva
 Description:	Parva is a small, light weight, CLI based password manager.
 URL:			https://github.com/mrcrilly/Parva
 Author:			Michael Crilly
 Contact:		mrcrilly@gmail.com
-'''
+"""
 
 # Script information
 __author__ = "Michael Crilly <mrcrilly@gmail.com>"
@@ -35,12 +35,16 @@ THE_VAULT = 'vault'
 SKEY_SALT = "vr]rN&o|'O@`3leIUm/K7%W+id^.vd~K,&G?AqBI#g1ov>L:sn:\:]VdQd{lMl'W<p(FEVTOI{n+rV$h6Q|_H+\ERH&s+|Wc[=?;"
 
 def createDatabase():
-	'''
+	"""
 	Creates an empty JSON database (unencrypted). This defines the default database structure.
 	
-	Arguments: None
-	Returns: JSON structure
-	'''
+	Attributes:
+		None
+		
+	Returns:
+		JSON document using default database structure.
+	"""
+	
 	structure = {
 		r'secrets': {},
 		r'policy': {
@@ -54,31 +58,57 @@ def createDatabase():
 
 	if not exists(THE_VAULT):
 		fd = open(THE_VAULT, 'w')
+		if not fd:
+			raise IOError('Unable to open database: {0}'.format(THE_VAULT))
+			
 		fd.close()
 			
 	return structure
 
 def backupDatabase():
-	'''
+	"""
 	Create a backup of the database. This is done before any manipulation to the database.
 	Note that we simply overwrite the existing backup.
-	'''
+	
+	Attributes:
+		None
+		
+	Returns:
+		None
+	"""
+	
 	if exists(THE_VAULT):
 		copy2(THE_VAULT, "{0}.backup".format(THE_VAULT))
 
 def generatePassword(policy):
-	'''
+	"""
 	General purpose password generator. Uses the policy to generate passwords.
-	'''
+	
+	Attributes:
+		policy	-- The policy to read from; defines password length, symbol usage and perhaps others in the future
+		
+	Returns:
+		Password based on policy as string
+	"""
+	
 	return pwgen(policy['password_length'], no_symbols=policy['no_symbols'])
 
-def addRecord(db, tag, username=None, system=None, sensitivity=None, enabled=True, readOnly=False):
-	'''
+def addRecord(db, tag, username=None, system=None):
+	"""
 	Add a new record to the database by generating a JSON object and injecting it.
-	'''
+	
+	Attributes:
+		db			-- The database to add the record to
+		tag			-- The unique tag to inject
+		username	-- (optional) username for access to the system
+		system		-- (optional) the system the password applies to
+		
+	Returns:
+		JSON document
+	"""
+	
 	if tag in db['secrets']:
-		print "Tags need to be unique."
-		exit(1)
+		raise LookupError('This tag does not exist in the database: {0}'.format(tag))
 
 	p_date = (datetime.now() + timedelta(days=+(db['policy']['expires_in']))).isoformat()
 	entry = {
@@ -95,32 +125,64 @@ def addRecord(db, tag, username=None, system=None, sensitivity=None, enabled=Tru
 	return db
 
 def editRecord(record, attribute, newValue):
-	'''
+	"""
 	Edit the given tag, updating the attribute with the new value
-	'''
+	
+	Attributes:
+		record		-- The record to manipulate
+		attribute	-- The record attribute to manipulate
+		newValue	-- The new value to apply to the attribute
+		
+	Returns:
+		JSON object; the new/manipulated record
+	"""
+	
 	record[attribute] = newValue
 	return record
 
 def viewRecord(record):
-	'''
+	"""
 	Takes a JSON object and pretty-prints it. It also manipulates the datye string to be more readable.
-	'''
+	
+	Attributes:
+		record	-- The record to print
+		
+	Returns:
+		None
+	"""
+	
 	if record['accessed']:
 		record['accessed'] = trimDateTime(record['accessed'])
+		
 	record['added'] = trimDateTime(record['added'])
 	record['expires'] = trimDateTime(record['expires'])
 	print json.dumps(record, separators=(',', ':'), sort_keys=True, indent=4)
 	
 def trimDateTime(isodatetime):
-	'''
+	"""
 	Utility function for trimming out the fluff in ISO date-times.
-	'''
+	
+	Attributes:
+		isodatetime	-- An ISO date/time string to format
+		
+	Returns:
+		String; a "cleaner" ISO date/time string
+	"""
+	
 	return isodatetime.replace('T', ' ', 1)[:-7]
 
 def searchRecords(db, term):
-	'''
-	Search the JSON DB's tags for "term"
-	'''
+	"""
+	Search the JSON DB's tags for term.
+	
+	Attributes:
+		db		-- The database to search
+		term	-- The string term to find in tags
+		
+	Returns:
+		List of JSON objects; calls viewRecord()
+	"""
+	
 	secrets = [tag for tag in db if term in tag]
 	if len(secrets) > 0:
 		for secret in secrets:
@@ -128,17 +190,32 @@ def searchRecords(db, term):
 		return secrets
 
 def deleteRecord(db, tag):
-	'''
+	"""
 	Delete an existing record from the database.
-	'''
+	
+	Attributes:
+		db		-- The database to manipulate
+		tag		-- The tag to remove
+		
+	Returns:
+		JSON document; the manipulated database
+	"""
+	
 	if tag in db['secrets']:
 		del db['secrets'][tag]
 		return db
 
 def dumpRecords(data, compact=False):
-	'''
-	Dump all of the records, minus passwords
-	'''
+	"""
+	Dump all of the records, minus passwords. Passwords are removed for security.
+	
+	Attributes:
+		data	-- The database to parse
+		compact	-- Print compact JSON
+		
+	Returns:
+		None
+	"""
 	
 	if 'password' in data:
 		del data['password']
@@ -149,10 +226,16 @@ def dumpRecords(data, compact=False):
 		print json.dumps(data)
 		
 def expiryCheck(record):
-	'''
-	Check if a password has expired or not.
-	'''
-	# Basic date check to make sure password hasn't expired
+	"""
+	Check if a password has expired and update it if so.
+	
+	Attributes:
+		record	-- The record to check the expiry date of
+		
+	Returns:
+		JSON object; the manipulated record
+	"""
+
 	c_date = datetime.now().isoformat()
 	p_date = record['expires']
 	if p_date < c_date:
@@ -164,10 +247,17 @@ def expiryCheck(record):
 	return record
 
 def encryptDatabase(secretkey, data):
-	'''
+	"""
 	Utilise the Crypto library and implement AES-256-CFB encryption to the database.
-	We don't use temporary files here - everything is kept in variables and therefore memory (we hope).
-	'''
+	
+	Attributes:
+		secretkey	-- The user's secretkey
+		data		-- The data to encrypt
+		
+	Returns:
+		None
+	"""
+	
 	IV = Random.new().read(16)
 	engine = AES.new(secretkey, AES.MODE_CFB, IV)
 
@@ -180,15 +270,21 @@ def encryptDatabase(secretkey, data):
 			fd.close()
 			move("{0}.swap".format(THE_VAULT), THE_VAULT)
 		else:
-			print "Problem opening database."
-			exit(1)
+			raise IOError('Unable to open the database file: {0}.swap'.format(THE_VAULT))
 	else:
-		print "Unable to find database file."
+		raise IOError('Database file does not exist: {0}'.format(THE_VAULT))
 	
 def decryptDatabase(secretkey):
-	'''
-	Decrypt the database. We utilise AES-256-CFB mode.
-	'''
+	"""
+	Decrypt the database.
+	
+	Attributes:
+		secretkey	-- The user's secret key
+		
+	Returns:
+		JSON document; decrypted database
+	"""
+	
 	if exists(THE_VAULT):
 		fd = open(THE_VAULT, 'rb')
 		if fd:
@@ -198,31 +294,41 @@ def decryptDatabase(secretkey):
 			denc_data = engine.decrypt(data)
 			fd.close()
 		else:
-			print "Unable to open database file."
-			exit(1)
+			raise IOError('Unable to open the database file: {0}'.format(THE_VAULT))
 	else:
-		print "Unable to find database file."
-		exit(1)
+		raise IOError('Database file does not exist: {0}'.format(THE_VAULT))
 
 	return json.JSONDecoder().decode(denc_data)
 	
 def getSecret(doubleCheck=False):
-	'''
+	"""
 	Get the user's secret key
-	'''
+	
+	Attributes:
+		doubleCheck	-- Ask the user twice
+		
+	Returns:
+		string; secret key passed through PBKDF2()
+	"""
+	
 	skey_1 = getpass('Secret Key: ')
 	if doubleCheck:
 		skey_2 = getpass('Secret Key (again): ')
 		if not skey_1 == skey_2:
-			print "Your secret keys do not match."
-			exit(1)
+			raise IOError('The given keys do not match.')
 	
 	return PBKDF2(skey_1, SKEY_SALT).read(32)	
 
 def main():
-	'''
+	"""
 	Our application entry point.
-	'''
+	
+	Attributes:
+		See ArgumentParser() object below
+		
+	Returns:
+		None
+	"""
 
 	# Set up and handle argument parsing
 	from argparse import ArgumentParser
