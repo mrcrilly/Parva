@@ -8,7 +8,7 @@ parva.py - A small password manager.
 __author__ = "Michael Crilly <mrcrilly@gmail.com>"
 __copyright__ = "Not defined"
 __license__	= "Not defined"
-__version__	= "1.0.6"
+__version__	= "1.0.8"
 
 from getpass import getpass
 from pwgen import pwgen
@@ -24,8 +24,10 @@ from pbkdf2 import PBKDF2
 
 import json
 
+REMOTE_VAULT = False
 THE_VAULT = 'vault'
-SKEY_SALT = 'Iex5Eiqueizaba5moS9es1wo3eethii3oniw7igh5eitie0olo'
+
+SKEY_SALT = "vr]rN&o|'O@`3leIUm/K7%W+id^.vd~K,&G?AqBI#g1ov>L:sn:\:]VdQd{lMl'W<p(FEVTOI{n+rV$h6Q|_H+\ERH&s+|Wc[=?;"
 
 def createDatabase():
 	'''
@@ -37,7 +39,6 @@ def createDatabase():
 			r'password_length': 50,
 			r'no_symbols': False,
 			r'expires_in': 90,
-			r'auto_renew': True
 		},
 		r'created': str(datetime.now().isoformat()),
 		r'client_version': __version__,
@@ -55,7 +56,7 @@ def backupDatabase():
 	Note that we simply overwrite the existing backup.
 	'''
 	if exists(THE_VAULT):
-		copy2(THE_VAULT, "{}.backup".format(THE_VAULT))
+		copy2(THE_VAULT, "{0}.backup".format(THE_VAULT))
 
 def generatePassword(policy):
 	'''
@@ -115,7 +116,7 @@ def viewPassword(record):
 	'''
 	Print out only the password.
 	'''
-	print "{}".format(record['password'])
+	print "{0}".format(record['password'])
 
 def searchRecords(db, term):
 	'''
@@ -157,13 +158,8 @@ def expiryCheck(record):
 	p_date = record['expires']
 	if p_date < c_date:
 		print "This record's password has expired - generating a new one."
-		
 		record['prev_password'] = record['password']
-		if record['sensitivity'] >= 2:
-			record['password'] = generatePassword(data['policy'], True)
-		else:
-			record['password'] = generatePassword(data['policy'])
-			
+		record['password'] = generatePassword(data['policy'])
 		record['expires'] = (datetime.now()+timedelta(days=+data['policy']['expires_in'])).isoformat()
 
 	return record
@@ -178,12 +174,12 @@ def encryptDatabase(secretkey, data):
 
 	if exists(THE_VAULT):
 		backupDatabase()
-		fd = open("{}.swap".format(THE_VAULT), 'wb')
+		fd = open("{0}.swap".format(THE_VAULT), 'wb')
 		if fd:
 			jdata = json.JSONEncoder().encode(data)
 			fd.write(IV + engine.encrypt(jdata))
 			fd.close()
-			move("{}.swap".format(THE_VAULT), THE_VAULT)
+			move("{0}.swap".format(THE_VAULT), THE_VAULT)
 		else:
 			print "Problem opening database."
 			exit(1)
@@ -210,20 +206,33 @@ def decryptDatabase(secretkey):
 		exit(1)
 
 	return json.JSONDecoder().decode(denc_data)
+	
+def getSecret(doubleCheck=False):
+	'''
+	Get the user's secret key
+	'''
+	skey_1 = getpass('Secret Key: ')
+	if doubleCheck:
+		skey_2 = getpass('Secret Key (again): ')
+		if not skey_1 == skey_2:
+			print "Your secret keys do not match."
+			exit(1)
+	
+	return PBKDF2(skey_1, SKEY_SALT).read(32)	
 
 def main():
 	'''
 	Our application entry point.
 	'''
 
-# Set up and handle argument parsing
+	# Set up and handle argument parsing
 	from argparse import ArgumentParser
 	ap = ArgumentParser()
 
-# Database options
-	ap.add_argument('-c', '--create-database', dest='create', help='Create a new database', action='store_true')
+	# Database options
+	ap.add_argument('-c', dest='create', help='Create a new database', action='store_true')
 
-# Database record handling options
+	# Database record handling options
 	ap.add_argument('-a', metavar='tag', dest='add', help='Add a new record, auto-generating a password')
 	ap.add_argument('-d', metavar='tag', dest='delete', help='Delete the given tag')
 	ap.add_argument('-e', metavar='tag', dest='edit', help='Edit the given tag')
@@ -232,42 +241,32 @@ def main():
 	ap.add_argument('-p', metavar='tag', dest='password', help='View only the password for a given tag')
 	ap.add_argument('-r', metavar='tag', dest='rotate', help='Rotate password for given tag')
 
-# Optionals to the above
+	# Optionals to the above
 	ap.add_argument('-U', metavar='username', dest='username', help='Username for the given tag')
 	ap.add_argument('-S', metavar='system', dest='system', help='System for the given tag, such as an IP or hostname/URL')
 
-# Database policy options
+	# Database policy options
 	ap.add_argument('--policy', dest='policy', help='Display the database policies', action='store_true')
 	ap.add_argument('--pwlen', metavar='len', dest='pwlen', help='Update the policy password length', type=int)
 	ap.add_argument('--nosymbols', dest='symbols', help='Turn off symbols in passwords', action='store_true')
 	ap.add_argument('--expires', metavar='days', dest='expires', help='Set the number of days the password expires', type=int)
 	ap.add_argument('--autorenew', dest='autorenew', help='Turn on or off auto password refresh.', action='store_true')
 
-# Database record exporting
+	# Database record exporting
 	ap.add_argument('-j', '--compact-json', dest='json', help='Dump the database: compact and ugly.', action='store_true')
 	ap.add_argument('-J', '--pretty-json', dest='pjson', help='Dump the database: verbose and pretty.', action='store_true')
 
 	args = ap.parse_args()
-
-# If we're not passed the key via -k/--key, ask for the password
-	skey_1 = getpass("Secret Key: ")
-	if args.create:
-		# Make sure the key is right first time around
-		skey_2 = getpass("Secret Key (again): ")
 	
-		if not skey_1 == skey_2:
-			print "The secret keys don't match."
-			exit(1)
-			
-	skey = PBKDF2(skey_1, SKEY_SALT).read(32)		
-
-# Check the database exists before trying to do anything else
+	# Check the database exists before trying to do anything else
 	if not exists(THE_VAULT) or args.create:
+		skey = getSecret(True)
 		data = createDatabase()
-		addRecord(data, "Example - delete me?")
 		encryptDatabase(skey, data)
-
-# Policy editing
+	else:
+		skey = getSecret()
+		
+	# Policy editing
 	if args.policy:
 		data = decryptDatabase(skey)
 		dumpRecords(data['policy'])
@@ -298,7 +297,7 @@ def main():
 			data['policy']['auto_renew'] = True
 		encryptDatabase(skey, data)
 
-# ADD RECORD
+	# ADD RECORD
 	if args.add:
 		data = decryptDatabase(skey)
 		data = addRecord(data, args.add)
@@ -311,14 +310,14 @@ def main():
 		encryptDatabase(skey, data)
 		print "New entry for '{0}'; password: {1}".format(args.add,	data['secrets'][args.add]['password'])
 
-# DELETE RECORD
+	# DELETE RECORD
 	if args.delete:
 		data = decryptDatabase(skey)
 		data = deleteRecord(data, args.delete)
 		encryptDatabase(skey, data)
-		print "Deleted '{}'".format(args.delete)
+		print "Deleted '{0}'".format(args.delete)
 
-# EDIT RECORD
+	# EDIT RECORD
 	if args.edit:
 		data = decryptDatabase(skey)
 		record = data['secrets'][args.edit]
@@ -336,7 +335,7 @@ def main():
 		data['secrets'][args.edit] = record
 		encryptDatabase(skey, data)
 	
-# VIEW RECORD
+	# VIEW RECORD
 	if args.view:
 		data = decryptDatabase(skey)
 		if args.view in data['secrets']:
@@ -347,7 +346,7 @@ def main():
 			print "That record doesn't exist."
 			exit(1)
 
-# VIEW PASSWORD
+	# VIEW PASSWORD
 	if args.password:
 		data = decryptDatabase(skey)
 		if args.password in data['secrets']:
@@ -358,30 +357,30 @@ def main():
 			print "That record doesn't exist."
 			exit(1)
 		
-# SEARCH DATABASE
+	# SEARCH DATABASE
 	if args.search:
 		data = decryptDatabase(skey)
 		#results = searchRecords(data['secrets'], args.search)
 		secrets = [tag for tag in data['secrets'] if args.search in tag]
 		for secret in secrets:
-			print "Found: {}".format(secret)
+			print "Found: {0}".format(secret)
 			viewRecord(data['secrets'][secret])
 			data['secrets'][secret]['accessed'] = datetime.now().isoformat()
 		encryptDatabase(skey, data)
 			
-# CYCLE PASSWORD
+	# CYCLE PASSWORD
 	if args.rotate:
 		data = decryptDatabase(skey)
 		data['secrets'][args.rotate]['password'] = generatePassword(data['policy'])
 		encryptDatabase(skey, data)
 
-# PRINT UGLY JSON
+	# PRINT UGLY JSON
 	if args.json:
 		data = decryptDatabase(skey)
 		dumpRecords(data, True)
 		exit(0)
 
-# PRINT PRETTY JSON
+	# PRINT PRETTY JSON
 	if args.pjson:
 		data = decryptDatabase(skey)
 		dumpRecords(data, False)

@@ -18,4 +18,5 @@ The project features:
 
 Features to come:
 
-- Basic REST API using Bottle
+- Basic REST API using Bottle;
+- Remote database storage, downloaded over HTTP(S);
