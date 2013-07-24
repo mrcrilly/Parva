@@ -457,35 +457,39 @@ def main():
 	if args.edit:
 		data = decryptDatabase(skey)
 		
-		if not checkHMAC(skey, data['secrets'][args.edit]):
-			print "This record's signature does not match!"
-			exit(1)
+		if args.edit in data['secrets']:
+			if not checkHMAC(skey, data['secrets'][args.edit]):
+				print "This record's signature does not match!"
+				exit(1)
 		
-		record = data['secrets'][args.edit]
-		record = expiryCheck(record)
+			record = data['secrets'][args.edit]
+			record = expiryCheck(record)
 		
-		if not args.username and not args.system:
-			print "No attribute given. Nothing to edit."
-			exit(1)
+			if not args.username and not args.system:
+				print "No attribute given. Nothing to edit."
+				exit(1)
 		
-		if args.username:
-			record = editRecord(record, 'username', args.username)
+			if args.username:
+				record = editRecord(record, 'username', args.username)
 		
-		if args.system:
-			record = editRecord(record, 'system', args.system)
+			if args.system:
+				record = editRecord(record, 'system', args.system)
 			
-		data['secrets'][args.edit] = record
-		encryptDatabase(skey, data)
+			data['secrets'][args.edit] = record
+			encryptDatabase(skey, data)
+		else:
+			print "That record doesn't exist."
+			exit(1)
 	
 	# VIEW RECORD
 	if args.view:
 		data = decryptDatabase(skey)
 
-		if not checkHMAC(skey, data['secrets'][args.view]):
-			print "This record's signature does not match!"
-			exit(1)
-		
 		if args.view in data['secrets']:
+			if not checkHMAC(skey, data['secrets'][args.view]):
+				print "This record's signature does not match!"
+				exit(1)
+		
 			viewRecord(data['secrets'][args.view])
 			data['secrets'][args.view]['accessed'] = datetime.now().isoformat()
 			encryptDatabase(skey, data)
@@ -497,11 +501,11 @@ def main():
 	if args.password:
 		data = decryptDatabase(skey)
 		
-		if not checkHMAC(skey, data['secrets'][args.password]):
-			print "This record's signature does not match!"
-			exit(1)
-		
 		if args.password in data['secrets']:
+			if not checkHMAC(skey, data['secrets'][args.password]):
+				print "This record's signature does not match!"
+				exit(1)
+			
 			print "{0}".format(data['secrets'][args.password]['password'])
 			data['secrets'][args.password]['accessed'] = datetime.now().isoformat()
 			encryptDatabase(skey, data)
@@ -513,22 +517,37 @@ def main():
 	if args.search:
 		data = decryptDatabase(skey)
 		secrets = [tag for tag in data['secrets'] if args.search in tag]
-		for secret in secrets:
+		if len(secrets) > 0:
+			for secret in secrets:
 		
-			if not checkHMAC(skey, data['secrets'][secret]):
-				print "This record's signature does not match!"
-				exit(1)
+				if not checkHMAC(skey, data['secrets'][secret]):
+					print "This record's signature does not match!"
+					exit(1)
 		
-			print "Found: {0}".format(secret)
-			viewRecord(data['secrets'][secret])
-			data['secrets'][secret]['accessed'] = datetime.now().isoformat()
-		encryptDatabase(skey, data)
+				print "Found: {0}".format(secret)
+				viewRecord(data['secrets'][secret])
+				data['secrets'][secret]['accessed'] = datetime.now().isoformat()
+			encryptDatabase(skey, data)
+		else:
+			print "No secrets returned for the given search term."
+			exit(1)
 			
 	# CYCLE PASSWORD
 	if args.rotate:
 		data = decryptDatabase(skey)
-		data['secrets'][args.rotate]['password'] = generatePassword(data['policy'])
-		encryptDatabase(skey, data)
+		
+		if args.rotate in data['secrets']:
+			if not checkHMAC(skey, data['secrets'][args.rotate]):
+				print "This record's signature does not match!"
+				exit(1)
+			
+			data['secrets'][args.rotate]['password'] = generatePassword(data['policy'])
+			data['secrets'][secret]['accessed'] = datetime.now().isoformat()
+			
+			encryptDatabase(skey, data)
+		else:
+			print "That record doesn't exist."
+			exit(1)
 
 	# PRINT UGLY JSON
 	if args.json:
