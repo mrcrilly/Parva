@@ -52,7 +52,6 @@ def createDatabase():
 			r'password_length': 50,
 			r'no_symbols': False,
 			r'expires_in': 90,
-			r'secret_hash': None,
 		},
 		r'created': str(datetime.now().isoformat()),
 		r'client_version': __version__,
@@ -120,7 +119,7 @@ def addRecord(db, tag, password, username=None, system=None):
 			r'password': password,
 			r'prev_password': None,
 			r'expires': p_date,
-			r'added': str(datetime.now().isoformat()),
+			r'created': datetime.now().isoformat(),
 			r'accessed': None,
 			r'username': username,
 			r'system': system,
@@ -157,11 +156,6 @@ def viewRecord(record):
 		None
 	"""
 	
-	#if record['accessed']:
-	#	record['accessed'] = trimDateTime(record['accessed'])
-		
-	#record['added'] = trimDateTime(record['added'])
-	#record['expires'] = trimDateTime(record['expires'])
 	print json.dumps(record, separators=(',', ':'), sort_keys=True, indent=4)
 	
 def trimDateTime(isodatetime):
@@ -344,10 +338,7 @@ def checkHMAC(secretkey, record):
 	"""
 	Check the authenticity of a record' HMAC
 	"""
-	r_hmac = generateHMAC(secretkey, "{0}{1}".format(record['password'], record['added']))
-	
-	print "gen: {0} | stored: {1}".format(r_hmac, record['signature'])
-	
+	r_hmac = generateHMAC(secretkey, "{0}{1}".format(record['password'], record['created']))
 	if r_hmac == record['signature']:
 		return True
 	else:
@@ -401,7 +392,6 @@ def main():
 	if not exists(THE_VAULT) or args.create:
 		skey = getSecret(True)			
 		data = createDatabase()
-		data['policy']['secret_hash'] = bcrypt.hashpw(skey, bcrypt.gensalt(15))
 		encryptDatabase(skey, data)
 	else:
 		skey = getSecret()
@@ -443,14 +433,14 @@ def main():
 		
 		passw = generatePassword(data['policy'])
 		data = addRecord(data, args.add, passw)
-		passw_hmac = generateHMAC(skey, "{0}{1}".format(passw, data['secrets'][args.add]['added']))
+		
+		data['secrets'][args.add]['signature'] = generateHMAC(skey, "{0}{1}".format(passw, data['secrets'][args.add]['created']))
 
 		if args.username:
 			data['secrets'][args.add]['username'] = args.username
 		if args.system:
 			data['secrets'][args.add]['system'] = args.system
-			
-		data['secrets'][args.add]['signature'] = passw_hmac			
+						
 		encryptDatabase(skey, data)
 		print "New entry for '{0}'; password: {1}".format(args.add,	data['secrets'][args.add]['password'])
 
@@ -510,7 +500,7 @@ def main():
 			exit(1)
 		
 		if args.password in data['secrets']:
-			print "{0}".format(data['secrets'][args.password])
+			print "{0}".format(data['secrets'][args.password]['password'])
 			data['secrets'][args.password]['accessed'] = datetime.now().isoformat()
 			encryptDatabase(skey, data)
 		else:
