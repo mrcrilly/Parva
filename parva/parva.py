@@ -1,7 +1,12 @@
 #!/usr/bin/env python
 
 '''
-parva.py - A small password manager.
+Script:			parva.py
+Application:	Parva
+Description:	Parva is a small, light weight, CLI based password manager.
+URL:			https://github.com/mrcrilly/Parva
+Author:			Michael Crilly
+Contact:		mrcrilly@gmail.com
 '''
 
 # Script information
@@ -31,7 +36,10 @@ SKEY_SALT = "vr]rN&o|'O@`3leIUm/K7%W+id^.vd~K,&G?AqBI#g1ov>L:sn:\:]VdQd{lMl'W<p(
 
 def createDatabase():
 	'''
-	Create a new empty database with the default structure.
+	Creates an empty JSON database (unencrypted). This defines the default database structure.
+	
+	Arguments: None
+	Returns: JSON structure
 	'''
 	structure = {
 		r'secrets': {},
@@ -47,7 +55,7 @@ def createDatabase():
 	if not exists(THE_VAULT):
 		fd = open(THE_VAULT, 'w')
 		fd.close()
-
+			
 	return structure
 
 def backupDatabase():
@@ -60,20 +68,18 @@ def backupDatabase():
 
 def generatePassword(policy):
 	'''
-	General purpose password generator
+	General purpose password generator. Uses the policy to generate passwords.
 	'''
 	return pwgen(policy['password_length'], no_symbols=policy['no_symbols'])
 
 def addRecord(db, tag, username=None, system=None, sensitivity=None, enabled=True, readOnly=False):
 	'''
-	Add a new record to the database
+	Add a new record to the database by generating a JSON object and injecting it.
 	'''
-	# Tags need to be unique
 	if tag in db['secrets']:
 		print "Tags need to be unique."
 		exit(1)
 
-	# Set up the expiry date in ISOFormat
 	p_date = (datetime.now() + timedelta(days=+(db['policy']['expires_in']))).isoformat()
 	entry = {
 			r'password': generatePassword(db['policy']),
@@ -92,13 +98,12 @@ def editRecord(record, attribute, newValue):
 	'''
 	Edit the given tag, updating the attribute with the new value
 	'''
-			
 	record[attribute] = newValue
 	return record
 
 def viewRecord(record):
 	'''
-	Match the string and display the results
+	Takes a JSON object and pretty-prints it. It also manipulates the datye string to be more readable.
 	'''
 	if record['accessed']:
 		record['accessed'] = trimDateTime(record['accessed'])
@@ -108,15 +113,9 @@ def viewRecord(record):
 	
 def trimDateTime(isodatetime):
 	'''
-	Utility function for trimming out the fluff in ISO date times
+	Utility function for trimming out the fluff in ISO date-times.
 	'''
 	return isodatetime.replace('T', ' ', 1)[:-7]
-
-def viewPassword(record):
-	'''
-	Print out only the password.
-	'''
-	print "{0}".format(record['password'])
 
 def searchRecords(db, term):
 	'''
@@ -321,16 +320,17 @@ def main():
 	if args.edit:
 		data = decryptDatabase(skey)
 		record = data['secrets'][args.edit]
-		
 		record = expiryCheck(record)
+		
+		if not args.username and not args.system:
+			print "No attribute given. Nothing to edit."
+			exit(1)
 		
 		if args.username:
 			record = editRecord(record, 'username', args.username)
-		elif args.system:
+		
+		if args.system:
 			record = editRecord(record, 'system', args.system)
-		else:
-			print "No attribute given."
-			exit(1)
 			
 		data['secrets'][args.edit] = record
 		encryptDatabase(skey, data)
@@ -350,7 +350,7 @@ def main():
 	if args.password:
 		data = decryptDatabase(skey)
 		if args.password in data['secrets']:
-			viewPassword(data['secrets'][args.password])	
+			print "{0}".format(data['secrets'][args.password])
 			data['secrets'][args.password]['accessed'] = datetime.now().isoformat()
 			encryptDatabase(skey, data)
 		else:
