@@ -13,7 +13,7 @@ Contact:		mrcrilly@gmail.com
 __author__ = "Michael Crilly <mrcrilly@gmail.com>"
 __copyright__ = "Not defined"
 __license__	= "Not defined"
-__version__	= "1.0.8"
+__version__	= "2.1.8"
 
 from getpass import getpass
 from pwgen import pwgen
@@ -31,7 +31,6 @@ import json
 
 REMOTE_VAULT = False
 THE_VAULT = 'vault'
-
 SKEY_SALT = "vr]rN&o|'O@`3leIUm/K7%W+id^.vd~K,&G?AqBI#g1ov>L:sn:\:]VdQd{lMl'W<p(FEVTOI{n+rV$h6Q|_H+\ERH&s+|Wc[=?;"
 
 def createDatabase():
@@ -246,6 +245,31 @@ def expiryCheck(record):
 
 	return record
 
+def openDatabase():
+	"""
+	Opens the database file and provides the three segments.
+	
+	Attributes:
+		None
+		
+	Returns:
+		Tuple; SALT, IV and Encrypted data
+	"""
+	
+	if exists(THE_VAULT):
+		fd = open(THE_VAULT, 'rb')
+		if fd:
+			db_salt = fd.read(len(SKEY_SALT))
+			db_iv = fd.read(16)
+			db_data = fd.read()
+			fd.close()
+		else:
+			raise IOError('Unable to open the database file: {0}'.format(THE_VAULT))
+	else:
+		raise IOError('Database file does not exist: {0}'.format(THE_VAULT))
+		
+	return (db_salt, db_iv, db_data)
+
 def encryptDatabase(secretkey, data):
 	"""
 	Utilise the Crypto library and implement AES-256-CFB encryption to the database.
@@ -266,7 +290,8 @@ def encryptDatabase(secretkey, data):
 		fd = open("{0}.swap".format(THE_VAULT), 'wb')
 		if fd:
 			jdata = json.JSONEncoder().encode(data)
-			fd.write(IV + engine.encrypt(jdata))
+			edata = "{0}{1}{2}".format(SKEY_SALT, IV, engine.encrypt(jdata))
+			fd.write(edata)
 			fd.close()
 			move("{0}.swap".format(THE_VAULT), THE_VAULT)
 		else:
@@ -288,8 +313,7 @@ def decryptDatabase(secretkey):
 	if exists(THE_VAULT):
 		fd = open(THE_VAULT, 'rb')
 		if fd:
-			IV = fd.read(16)
-			data = fd.read()
+			(salt, IV, data) = openDatabase()
 			engine = AES.new(secretkey, AES.MODE_CFB, IV)
 			denc_data = engine.decrypt(data)
 			fd.close()
@@ -300,7 +324,7 @@ def decryptDatabase(secretkey):
 
 	return json.JSONDecoder().decode(denc_data)
 	
-def getSecret(doubleCheck=False):
+def getSecret(doubleCheck=False, salt=False):
 	"""
 	Get the user's secret key
 	
@@ -317,7 +341,11 @@ def getSecret(doubleCheck=False):
 		if not skey_1 == skey_2:
 			raise IOError('The given keys do not match.')
 	
-	return PBKDF2(skey_1, SKEY_SALT).read(32)	
+	if not salt and SKEY_SALT:
+		return PBKDF2(skey_1, SKEY_SALT).read(32)
+	else:
+		(salt, iv, data) = openDatabase()
+		return PBKDF2(skey_1, salt).read(32)
 
 def main():
 	"""
@@ -365,11 +393,20 @@ def main():
 	
 	# Check the database exists before trying to do anything else
 	if not exists(THE_VAULT) or args.create:
-		skey = getSecret(True)
+		if not SKEY_SALT:
+			(salt, i, d) = openDatabase()
+			skey = getSecret(True, salt)
+		else:
+			skey = getSecret(True)
+			
 		data = createDatabase()
 		encryptDatabase(skey, data)
 	else:
-		skey = getSecret()
+		if not SKEY_SALT:
+			(salt, i, d) = openDatabase()
+			skey = getSecret(salt=salt)
+		else:
+			skey = getSecret()
 		
 	# Policy editing
 	if args.policy:
