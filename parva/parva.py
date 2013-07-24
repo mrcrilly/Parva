@@ -15,7 +15,7 @@ __copyright__ = "Not defined"
 __license__	= "Not defined"
 
 # Not in use yet
-__version__	= "0.0.0"
+__version__	= "X.0.10"
 
 from getpass import getpass
 from pwgen import pwgen
@@ -30,7 +30,6 @@ from Crypto.Hash import HMAC, SHA
 from Crypto import Random
 from pbkdf2 import PBKDF2
 
-import bcrypt
 import json
 
 REMOTE_VAULT = False
@@ -52,6 +51,7 @@ def createDatabase():
 		r'secrets': {},
 		r'policy': {
 			r'password_length': 50,
+			r'minimum_length': 20,
 			r'no_symbols': False,
 			r'expires_in': 90,
 		},
@@ -405,8 +405,13 @@ def main():
 
 	if args.pwlen:
 		data = decryptDatabase(skey)
-		data['policy']['password_length'] = args.pwlen
-		encryptDatabase(skey, data)
+		
+		if args.pwlen >= data['policy']['minimum_length']:
+			data['policy']['password_length'] = args.pwlen
+			encryptDatabase(skey, data)
+		else:
+			print "There is a {0} minimum character length".format(data['policy']['minimum_length'])
+			exit(1) 
 
 	if args.symbols:
 		data = decryptDatabase(skey)
